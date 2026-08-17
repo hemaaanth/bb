@@ -658,6 +658,9 @@ declare const projectExecutionDefaultsSchema: z$1.ZodObject<{
 }, z$1.core.$strip>;
 type ProjectExecutionDefaults = z$1.infer<typeof projectExecutionDefaultsSchema>;
 
+declare const clientTurnRequestIdSchema: z$1.ZodString;
+type ClientTurnRequestId = z$1.infer<typeof clientTurnRequestIdSchema>;
+
 /** All thread events — provider-originated or system-originated. */
 declare const threadEventSchema: z$1.ZodPipe<z$1.ZodUnknown, z$1.ZodUnion<readonly [z$1.ZodIntersection<z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
     type: z$1.ZodLiteral<"thread/started">;
@@ -2606,8 +2609,8 @@ type SkillFilesResponse = z$1.infer<typeof skillFilesResponseSchema>;
 declare const projectResponseSchema: z$1.ZodObject<{
     id: z$1.ZodString;
     kind: z$1.ZodEnum<{
-        standard: "standard";
         personal: "personal";
+        standard: "standard";
     }>;
     name: z$1.ZodString;
     gitRemoteUrl: z$1.ZodNullable<z$1.ZodString>;
@@ -2628,8 +2631,8 @@ type ProjectResponse = z$1.infer<typeof projectResponseSchema>;
 declare const projectWithThreadsResponseSchema: z$1.ZodObject<{
     id: z$1.ZodString;
     kind: z$1.ZodEnum<{
-        standard: "standard";
         personal: "personal";
+        standard: "standard";
     }>;
     name: z$1.ZodString;
     gitRemoteUrl: z$1.ZodNullable<z$1.ZodString>;
@@ -2726,8 +2729,8 @@ declare const projectWithThreadsResponseSchema: z$1.ZodObject<{
             ultra: "ultra";
         }>;
         permissionMode: z$1.ZodEnum<{
-            "accept-edits": "accept-edits";
             auto: "auto";
+            "accept-edits": "accept-edits";
             full: "full";
         }>;
     }, z$1.core.$strip>>;
@@ -2907,32 +2910,32 @@ declare const environmentDiffFileQuerySchema: z$1.ZodDiscriminatedUnion<[z$1.Zod
     target: z$1.ZodLiteral<"uncommitted">;
     path: z$1.ZodString;
     side: z$1.ZodEnum<{
-        old: "old";
         new: "new";
+        old: "old";
     }>;
 }, z$1.core.$strip>, z$1.ZodObject<{
     target: z$1.ZodLiteral<"branch_committed">;
     mergeBaseRef: z$1.ZodString;
     path: z$1.ZodString;
     side: z$1.ZodEnum<{
-        old: "old";
         new: "new";
+        old: "old";
     }>;
 }, z$1.core.$strip>, z$1.ZodObject<{
     target: z$1.ZodLiteral<"all">;
     mergeBaseRef: z$1.ZodString;
     path: z$1.ZodString;
     side: z$1.ZodEnum<{
-        old: "old";
         new: "new";
+        old: "old";
     }>;
 }, z$1.core.$strip>, z$1.ZodObject<{
     target: z$1.ZodLiteral<"commit">;
     sha: z$1.ZodString;
     path: z$1.ZodString;
     side: z$1.ZodEnum<{
-        old: "old";
         new: "new";
+        old: "old";
     }>;
 }, z$1.core.$strip>], "target">;
 type EnvironmentDiffFileQuery = z$1.infer<typeof environmentDiffFileQuerySchema>;
@@ -2954,8 +2957,8 @@ declare const environmentArchiveThreadsResponseSchema: z$1.ZodObject<{
 type EnvironmentArchiveThreadsResponse = z$1.infer<typeof environmentArchiveThreadsResponseSchema>;
 declare const pullRequestMergeMethodSchema: z$1.ZodEnum<{
     merge: "merge";
-    squash: "squash";
     rebase: "rebase";
+    squash: "squash";
 }>;
 type PullRequestMergeMethod = z$1.infer<typeof pullRequestMergeMethodSchema>;
 declare const commitActionResponseSchema: z$1.ZodObject<{
@@ -2986,8 +2989,8 @@ declare const pullRequestMergeActionResponseSchema: z$1.ZodObject<{
     action: z$1.ZodLiteral<"pull_request_merge">;
     method: z$1.ZodEnum<{
         merge: "merge";
-        squash: "squash";
         rebase: "rebase";
+        squash: "squash";
     }>;
     message: z$1.ZodString;
 }, z$1.core.$strip>;
@@ -3150,10 +3153,10 @@ declare const environmentPullRequestResponseSchema: z$1.ZodDiscriminatedUnion<[z
         mergeability: z$1.ZodObject<{
             state: z$1.ZodEnum<{
                 unknown: "unknown";
+                blocked: "blocked";
                 draft: "draft";
                 mergeable: "mergeable";
                 conflicts: "conflicts";
-                blocked: "blocked";
             }>;
             mergeStateStatus: z$1.ZodNullable<z$1.ZodEnum<{
                 BEHIND: "BEHIND";
@@ -3172,6 +3175,7 @@ declare const environmentPullRequestResponseSchema: z$1.ZodDiscriminatedUnion<[z
             }>>;
         }, z$1.core.$strict>;
         attention: z$1.ZodEnum<{
+            blocked: "blocked";
             none: "none";
             merged: "merged";
             draft: "draft";
@@ -3179,7 +3183,6 @@ declare const environmentPullRequestResponseSchema: z$1.ZodDiscriminatedUnion<[z
             changes_requested: "changes_requested";
             review_requested: "review_requested";
             conflicts: "conflicts";
-            blocked: "blocked";
             checks_failed: "checks_failed";
             checks_pending: "checks_pending";
             ready_to_merge: "ready_to_merge";
@@ -3567,9 +3570,9 @@ declare const hostDaemonCommandRegistry: {
             capabilities: z$1.ZodObject<{
                 supportsServiceTier: z$1.ZodBoolean;
                 permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                    full: "full";
-                    "accept-edits": "accept-edits";
                     auto: "auto";
+                    "accept-edits": "accept-edits";
+                    full: "full";
                 }>>;
                 supportsThreadArchive: z$1.ZodBoolean;
                 supportsThreadRename: z$1.ZodBoolean;
@@ -3609,16 +3612,16 @@ declare const hostDaemonCommandRegistry: {
             permissionScope: z$1.ZodLiteral<"workspace">;
             approvalReviewer: z$1.ZodLiteral<"user">;
             permissionEscalation: z$1.ZodEnum<{
-                ask: "ask";
                 deny: "deny";
+                ask: "ask";
             }>;
         }, z$1.core.$strip>, z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"auto">;
             permissionScope: z$1.ZodLiteral<"workspace">;
             approvalReviewer: z$1.ZodLiteral<"automatic">;
             permissionEscalation: z$1.ZodEnum<{
-                ask: "ask";
                 deny: "deny";
+                ask: "ask";
             }>;
         }, z$1.core.$strip>, z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"full">;
@@ -3794,9 +3797,9 @@ declare const hostDaemonCommandRegistry: {
             capabilities: z$1.ZodObject<{
                 supportsServiceTier: z$1.ZodBoolean;
                 permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                    full: "full";
-                    "accept-edits": "accept-edits";
                     auto: "auto";
+                    "accept-edits": "accept-edits";
+                    full: "full";
                 }>>;
                 supportsThreadArchive: z$1.ZodBoolean;
                 supportsThreadRename: z$1.ZodBoolean;
@@ -3836,16 +3839,16 @@ declare const hostDaemonCommandRegistry: {
             permissionScope: z$1.ZodLiteral<"workspace">;
             approvalReviewer: z$1.ZodLiteral<"user">;
             permissionEscalation: z$1.ZodEnum<{
-                ask: "ask";
                 deny: "deny";
+                ask: "ask";
             }>;
         }, z$1.core.$strip>, z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"auto">;
             permissionScope: z$1.ZodLiteral<"workspace">;
             approvalReviewer: z$1.ZodLiteral<"automatic">;
             permissionEscalation: z$1.ZodEnum<{
-                ask: "ask";
                 deny: "deny";
+                ask: "ask";
             }>;
         }, z$1.core.$strip>, z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"full">;
@@ -3940,8 +3943,8 @@ declare const hostDaemonCommandRegistry: {
                     }>;
                     origin: z$1.ZodEnum<{
                         builtin: "builtin";
-                        project: "project";
                         user: "user";
+                        project: "project";
                     }>;
                     label: z$1.ZodString;
                     argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -4021,8 +4024,8 @@ declare const hostDaemonCommandRegistry: {
                     }>;
                     origin: z$1.ZodEnum<{
                         builtin: "builtin";
-                        project: "project";
                         user: "user";
+                        project: "project";
                     }>;
                     label: z$1.ZodString;
                     argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -4114,8 +4117,8 @@ declare const hostDaemonCommandRegistry: {
                     }>;
                     origin: z$1.ZodEnum<{
                         builtin: "builtin";
-                        project: "project";
                         user: "user";
+                        project: "project";
                     }>;
                     label: z$1.ZodString;
                     argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -4195,8 +4198,8 @@ declare const hostDaemonCommandRegistry: {
                     }>;
                     origin: z$1.ZodEnum<{
                         builtin: "builtin";
-                        project: "project";
                         user: "user";
+                        project: "project";
                     }>;
                     label: z$1.ZodString;
                     argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -4259,16 +4262,16 @@ declare const hostDaemonCommandRegistry: {
             permissionScope: z$1.ZodLiteral<"workspace">;
             approvalReviewer: z$1.ZodLiteral<"user">;
             permissionEscalation: z$1.ZodEnum<{
-                ask: "ask";
                 deny: "deny";
+                ask: "ask";
             }>;
         }, z$1.core.$strip>, z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"auto">;
             permissionScope: z$1.ZodLiteral<"workspace">;
             approvalReviewer: z$1.ZodLiteral<"automatic">;
             permissionEscalation: z$1.ZodEnum<{
-                ask: "ask";
                 deny: "deny";
+                ask: "ask";
             }>;
         }, z$1.core.$strip>, z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"full">;
@@ -4385,9 +4388,9 @@ declare const hostDaemonCommandRegistry: {
             capabilities: z$1.ZodObject<{
                 supportsServiceTier: z$1.ZodBoolean;
                 permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                    full: "full";
-                    "accept-edits": "accept-edits";
                     auto: "auto";
+                    "accept-edits": "accept-edits";
+                    full: "full";
                 }>>;
                 supportsThreadArchive: z$1.ZodBoolean;
                 supportsThreadRename: z$1.ZodBoolean;
@@ -4407,6 +4410,9 @@ declare const hostDaemonCommandRegistry: {
                     personal: "personal";
                 }>;
             }, z$1.core.$strip>;
+            projectId: z$1.ZodString;
+            providerThreadId: z$1.ZodString;
+            providerId: z$1.ZodString;
             bridgeLaunch: z$1.ZodObject<{
                 pluginId: z$1.ZodString;
                 source: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
@@ -4420,9 +4426,9 @@ declare const hostDaemonCommandRegistry: {
                 capabilities: z$1.ZodObject<{
                     supportsServiceTier: z$1.ZodBoolean;
                     permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                        full: "full";
-                        "accept-edits": "accept-edits";
                         auto: "auto";
+                        "accept-edits": "accept-edits";
+                        full: "full";
                     }>>;
                     supportsThreadArchive: z$1.ZodBoolean;
                     supportsThreadRename: z$1.ZodBoolean;
@@ -4437,8 +4443,6 @@ declare const hostDaemonCommandRegistry: {
                 replace: "replace";
                 append: "append";
             }>;
-            projectId: z$1.ZodString;
-            providerId: z$1.ZodString;
             acpLaunchSpec: z$1.ZodOptional<z$1.ZodObject<{
                 displayName: z$1.ZodString;
                 command: z$1.ZodString;
@@ -4570,7 +4574,6 @@ declare const hostDaemonCommandRegistry: {
                 skillFilePath: z$1.ZodString;
             }, z$1.core.$strict>], "kind">>;
             disallowedTools: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
-            providerThreadId: z$1.ZodString;
         }, z$1.core.$strict>;
         target: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
             mode: z$1.ZodLiteral<"start">;
@@ -4583,8 +4586,8 @@ declare const hostDaemonCommandRegistry: {
         }, z$1.core.$strip>], "mode">;
     }, z$1.core.$strict>, z$1.ZodObject<{
         appliedAs: z$1.ZodEnum<{
-            steer: "steer";
             "new-turn": "new-turn";
+            steer: "steer";
         }>;
     }, z$1.core.$strip>, "settled", false>;
     "thread.stop": HostDaemonCommandDescriptor<"thread.stop", z$1.ZodObject<{
@@ -4631,16 +4634,16 @@ declare const hostDaemonCommandRegistry: {
             permissionScope: z$1.ZodLiteral<"workspace">;
             approvalReviewer: z$1.ZodLiteral<"user">;
             permissionEscalation: z$1.ZodEnum<{
-                ask: "ask";
                 deny: "deny";
+                ask: "ask";
             }>;
         }, z$1.core.$strip>, z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"auto">;
             permissionScope: z$1.ZodLiteral<"workspace">;
             approvalReviewer: z$1.ZodLiteral<"automatic">;
             permissionEscalation: z$1.ZodEnum<{
-                ask: "ask";
                 deny: "deny";
+                ask: "ask";
             }>;
         }, z$1.core.$strip>, z$1.ZodObject<{
             permissionMode: z$1.ZodLiteral<"full">;
@@ -4757,9 +4760,9 @@ declare const hostDaemonCommandRegistry: {
             capabilities: z$1.ZodObject<{
                 supportsServiceTier: z$1.ZodBoolean;
                 permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                    full: "full";
-                    "accept-edits": "accept-edits";
                     auto: "auto";
+                    "accept-edits": "accept-edits";
+                    full: "full";
                 }>>;
                 supportsThreadArchive: z$1.ZodBoolean;
                 supportsThreadRename: z$1.ZodBoolean;
@@ -4779,6 +4782,9 @@ declare const hostDaemonCommandRegistry: {
                     personal: "personal";
                 }>;
             }, z$1.core.$strip>;
+            projectId: z$1.ZodString;
+            providerThreadId: z$1.ZodString;
+            providerId: z$1.ZodString;
             bridgeLaunch: z$1.ZodObject<{
                 pluginId: z$1.ZodString;
                 source: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
@@ -4792,9 +4798,9 @@ declare const hostDaemonCommandRegistry: {
                 capabilities: z$1.ZodObject<{
                     supportsServiceTier: z$1.ZodBoolean;
                     permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                        full: "full";
-                        "accept-edits": "accept-edits";
                         auto: "auto";
+                        "accept-edits": "accept-edits";
+                        full: "full";
                     }>>;
                     supportsThreadArchive: z$1.ZodBoolean;
                     supportsThreadRename: z$1.ZodBoolean;
@@ -4809,8 +4815,6 @@ declare const hostDaemonCommandRegistry: {
                 replace: "replace";
                 append: "append";
             }>;
-            projectId: z$1.ZodString;
-            providerId: z$1.ZodString;
             acpLaunchSpec: z$1.ZodOptional<z$1.ZodObject<{
                 displayName: z$1.ZodString;
                 command: z$1.ZodString;
@@ -4942,7 +4946,6 @@ declare const hostDaemonCommandRegistry: {
                 skillFilePath: z$1.ZodString;
             }, z$1.core.$strict>], "kind">>;
             disallowedTools: z$1.ZodOptional<z$1.ZodArray<z$1.ZodString>>;
-            providerThreadId: z$1.ZodString;
         }, z$1.core.$strict>;
     }, z$1.core.$strict>, z$1.ZodObject<{
         cleared: z$1.ZodBoolean;
@@ -4988,9 +4991,9 @@ declare const hostDaemonCommandRegistry: {
             capabilities: z$1.ZodObject<{
                 supportsServiceTier: z$1.ZodBoolean;
                 permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                    full: "full";
-                    "accept-edits": "accept-edits";
                     auto: "auto";
+                    "accept-edits": "accept-edits";
+                    full: "full";
                 }>>;
                 supportsThreadArchive: z$1.ZodBoolean;
                 supportsThreadRename: z$1.ZodBoolean;
@@ -5021,9 +5024,9 @@ declare const hostDaemonCommandRegistry: {
             capabilities: z$1.ZodObject<{
                 supportsServiceTier: z$1.ZodBoolean;
                 permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                    full: "full";
-                    "accept-edits": "accept-edits";
                     auto: "auto";
+                    "accept-edits": "accept-edits";
+                    full: "full";
                 }>>;
                 supportsThreadArchive: z$1.ZodBoolean;
                 supportsThreadRename: z$1.ZodBoolean;
@@ -5411,8 +5414,8 @@ declare const hostDaemonCommandRegistry: {
                 skill: "skill";
             }>;
             origin: z$1.ZodEnum<{
-                project: "project";
                 user: "user";
+                project: "project";
             }>;
             description: z$1.ZodNullable<z$1.ZodString>;
             argumentHint: z$1.ZodNullable<z$1.ZodString>;
@@ -5433,9 +5436,9 @@ declare const hostDaemonCommandRegistry: {
             description: z$1.ZodNullable<z$1.ZodString>;
             filePath: z$1.ZodString;
             rootKind: z$1.ZodEnum<{
+                plugin: "plugin";
                 "shared-user": "shared-user";
                 "shared-project": "shared-project";
-                plugin: "plugin";
                 "bb-project": "bb-project";
                 "bb-data-dir": "bb-data-dir";
                 "bb-builtin": "bb-builtin";
@@ -5741,9 +5744,9 @@ declare const hostDaemonCommandRegistry: {
             capabilities: z$1.ZodObject<{
                 supportsServiceTier: z$1.ZodBoolean;
                 permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                    full: "full";
-                    "accept-edits": "accept-edits";
                     auto: "auto";
+                    "accept-edits": "accept-edits";
+                    full: "full";
                 }>>;
                 supportsThreadArchive: z$1.ZodBoolean;
                 supportsThreadRename: z$1.ZodBoolean;
@@ -6331,9 +6334,9 @@ declare const hostDaemonCommandRegistry: {
                 conclusion: z$1.ZodNullable<z$1.ZodEnum<{
                     unknown: "unknown";
                     success: "success";
+                    skipped: "skipped";
                     cancelled: "cancelled";
                     failure: "failure";
-                    skipped: "skipped";
                     neutral: "neutral";
                     timed_out: "timed_out";
                     action_required: "action_required";
@@ -7141,8 +7144,8 @@ declare const systemExecutionOptionsResponseSchema: z$1.ZodObject<{
             supportsFork: z$1.ZodBoolean;
             supportsSessionRewind: z$1.ZodBoolean;
             permissionModes: z$1.ZodArray<z$1.ZodEnum<{
-                "accept-edits": "accept-edits";
                 auto: "auto";
+                "accept-edits": "accept-edits";
                 full: "full";
             }>>;
         }, z$1.core.$strip>;
@@ -7173,8 +7176,8 @@ declare const systemExecutionOptionsResponseSchema: z$1.ZodObject<{
         available: z$1.ZodBoolean;
     }, z$1.core.$strip>>;
     permissionCeiling: z$1.ZodEnum<{
-        "accept-edits": "accept-edits";
         auto: "auto";
+        "accept-edits": "accept-edits";
         full: "full";
     }>;
     models: z$1.ZodArray<z$1.ZodObject<{
@@ -8652,10 +8655,10 @@ declare const createThreadRequestSchema: z$1.ZodObject<{
         ultra: "ultra";
     }>>;
     permissionMode: z$1.ZodOptional<z$1.ZodPipe<z$1.ZodUnion<readonly [z$1.ZodEnum<{
-        "accept-edits": "accept-edits";
         auto: "auto";
+        "accept-edits": "accept-edits";
         full: "full";
-    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"accept-edits" | "auto" | "full", "accept-edits" | "auto" | "full" | "workspace-write">>>;
+    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"auto" | "accept-edits" | "full", "auto" | "accept-edits" | "full" | "workspace-write">>>;
     executionInputSources: z$1.ZodOptional<z$1.ZodObject<{
         providerId: z$1.ZodOptional<z$1.ZodEnum<{
             explicit: "explicit";
@@ -8893,10 +8896,10 @@ declare const forkThreadRequestSchema: z$1.ZodObject<{
     }, z$1.core.$strip>>>>;
     title: z$1.ZodOptional<z$1.ZodString>;
     permissionMode: z$1.ZodOptional<z$1.ZodPipe<z$1.ZodUnion<readonly [z$1.ZodEnum<{
-        "accept-edits": "accept-edits";
         auto: "auto";
+        "accept-edits": "accept-edits";
         full: "full";
-    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"accept-edits" | "auto" | "full", "accept-edits" | "auto" | "full" | "workspace-write">>>;
+    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"auto" | "accept-edits" | "full", "auto" | "accept-edits" | "full" | "workspace-write">>>;
     visibility: z$1.ZodDefault<z$1.ZodEnum<{
         visible: "visible";
         hidden: "hidden";
@@ -9012,10 +9015,10 @@ declare const sendMessageRequestSchema: z$1.ZodObject<{
         ultra: "ultra";
     }>>;
     permissionMode: z$1.ZodOptional<z$1.ZodPipe<z$1.ZodUnion<readonly [z$1.ZodEnum<{
-        "accept-edits": "accept-edits";
         auto: "auto";
+        "accept-edits": "accept-edits";
         full: "full";
-    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"accept-edits" | "auto" | "full", "accept-edits" | "auto" | "full" | "workspace-write">>>;
+    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"auto" | "accept-edits" | "full", "auto" | "accept-edits" | "full" | "workspace-write">>>;
     executionInputSources: z$1.ZodOptional<z$1.ZodObject<{
         model: z$1.ZodOptional<z$1.ZodEnum<{
             explicit: "explicit";
@@ -9044,111 +9047,6 @@ declare const sendMessageRequestSchema: z$1.ZodObject<{
     senderThreadId: z$1.ZodOptional<z$1.ZodString>;
 }, z$1.core.$strip>;
 type SendMessageRequest = z$1.infer<typeof sendMessageRequestSchema>;
-declare const providerRateLimitRecoveryStatusSchema: z$1.ZodObject<{
-    reason: z$1.ZodEnum<{
-        eligible: "eligible";
-        "thread-not-failed": "thread-not-failed";
-        "no-failed-turn": "no-failed-turn";
-        "input-not-accepted": "input-not-accepted";
-        "no-rate-limit-state": "no-rate-limit-state";
-        "no-terminal-rate-limit-error": "no-terminal-rate-limit-error";
-        "provider-will-retry": "provider-will-retry";
-        "manual-only": "manual-only";
-        "output-or-side-effect-observed": "output-or-side-effect-observed";
-        superseded: "superseded";
-        "execution-unavailable": "execution-unavailable";
-    }>;
-    scopeKey: z$1.ZodString;
-    hostId: z$1.ZodString;
-    rateLimits: z$1.ZodNullable<z$1.ZodObject<{
-        providerId: z$1.ZodString;
-        status: z$1.ZodEnum<{
-            unknown: "unknown";
-            warning: "warning";
-            blocked: "blocked";
-            allowed: "allowed";
-        }>;
-        kind: z$1.ZodEnum<{
-            unknown: "unknown";
-            "subscription-window": "subscription-window";
-            credits: "credits";
-            "spend-control": "spend-control";
-        }>;
-        windows: z$1.ZodArray<z$1.ZodObject<{
-            providerKey: z$1.ZodNullable<z$1.ZodString>;
-            label: z$1.ZodNullable<z$1.ZodString>;
-            status: z$1.ZodEnum<{
-                unknown: "unknown";
-                warning: "warning";
-                blocked: "blocked";
-                allowed: "allowed";
-            }>;
-            resetsAtMs: z$1.ZodNullable<z$1.ZodNumber>;
-        }, z$1.core.$strip>>;
-        reachedReason: z$1.ZodNullable<z$1.ZodString>;
-        overageStatus: z$1.ZodNullable<z$1.ZodEnum<{
-            rejected: "rejected";
-            warning: "warning";
-            unavailable: "unavailable";
-            allowed: "allowed";
-        }>>;
-        overageReason: z$1.ZodNullable<z$1.ZodString>;
-    }, z$1.core.$strip>>;
-    candidate: z$1.ZodNullable<z$1.ZodObject<{
-        failedRequestId: z$1.ZodString;
-        turnId: z$1.ZodString;
-        automatic: z$1.ZodBoolean;
-        resetsAtMs: z$1.ZodNullable<z$1.ZodNumber>;
-        rateLimits: z$1.ZodObject<{
-            providerId: z$1.ZodString;
-            status: z$1.ZodEnum<{
-                unknown: "unknown";
-                warning: "warning";
-                blocked: "blocked";
-                allowed: "allowed";
-            }>;
-            kind: z$1.ZodEnum<{
-                unknown: "unknown";
-                "subscription-window": "subscription-window";
-                credits: "credits";
-                "spend-control": "spend-control";
-            }>;
-            windows: z$1.ZodArray<z$1.ZodObject<{
-                providerKey: z$1.ZodNullable<z$1.ZodString>;
-                label: z$1.ZodNullable<z$1.ZodString>;
-                status: z$1.ZodEnum<{
-                    unknown: "unknown";
-                    warning: "warning";
-                    blocked: "blocked";
-                    allowed: "allowed";
-                }>;
-                resetsAtMs: z$1.ZodNullable<z$1.ZodNumber>;
-            }, z$1.core.$strip>>;
-            reachedReason: z$1.ZodNullable<z$1.ZodString>;
-            overageStatus: z$1.ZodNullable<z$1.ZodEnum<{
-                rejected: "rejected";
-                warning: "warning";
-                unavailable: "unavailable";
-                allowed: "allowed";
-            }>>;
-            overageReason: z$1.ZodNullable<z$1.ZodString>;
-        }, z$1.core.$strip>;
-    }, z$1.core.$strip>>;
-}, z$1.core.$strip>;
-type ProviderRateLimitRecoveryStatus = z$1.infer<typeof providerRateLimitRecoveryStatusSchema>;
-declare const continueAfterProviderRateLimitRequestSchema: z$1.ZodObject<{
-    failedRequestId: z$1.ZodString;
-    mode: z$1.ZodOptional<z$1.ZodEnum<{
-        automatic: "automatic";
-        manual: "manual";
-    }>>;
-}, z$1.core.$strict>;
-type ContinueAfterProviderRateLimitRequest = z$1.infer<typeof continueAfterProviderRateLimitRequestSchema>;
-declare const continueAfterProviderRateLimitResponseSchema: z$1.ZodObject<{
-    ok: z$1.ZodLiteral<true>;
-    requestId: z$1.ZodString;
-}, z$1.core.$strip>;
-type ContinueAfterProviderRateLimitResponse = z$1.infer<typeof continueAfterProviderRateLimitResponseSchema>;
 declare const editMessageRequestSchema: z$1.ZodObject<{
     input: z$1.ZodArray<z$1.ZodDiscriminatedUnion<[z$1.ZodObject<{
         visibility: z$1.ZodOptional<z$1.ZodEnum<{
@@ -9248,10 +9146,10 @@ declare const editMessageRequestSchema: z$1.ZodObject<{
         ultra: "ultra";
     }>>;
     permissionMode: z$1.ZodOptional<z$1.ZodPipe<z$1.ZodUnion<readonly [z$1.ZodEnum<{
-        "accept-edits": "accept-edits";
         auto: "auto";
+        "accept-edits": "accept-edits";
         full: "full";
-    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"accept-edits" | "auto" | "full", "accept-edits" | "auto" | "full" | "workspace-write">>>;
+    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"auto" | "accept-edits" | "full", "auto" | "accept-edits" | "full" | "workspace-write">>>;
     executionInputSources: z$1.ZodOptional<z$1.ZodObject<{
         model: z$1.ZodOptional<z$1.ZodEnum<{
             explicit: "explicit";
@@ -9378,10 +9276,10 @@ declare const createQueuedMessageRequestSchema: z$1.ZodObject<{
         ultra: "ultra";
     }>>;
     permissionMode: z$1.ZodOptional<z$1.ZodPipe<z$1.ZodUnion<readonly [z$1.ZodEnum<{
-        "accept-edits": "accept-edits";
         auto: "auto";
+        "accept-edits": "accept-edits";
         full: "full";
-    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"accept-edits" | "auto" | "full", "accept-edits" | "auto" | "full" | "workspace-write">>>;
+    }>, z$1.ZodLiteral<"workspace-write">]>, z$1.ZodTransform<"auto" | "accept-edits" | "full", "auto" | "accept-edits" | "full" | "workspace-write">>>;
     executionInputSources: z$1.ZodOptional<z$1.ZodObject<{
         model: z$1.ZodOptional<z$1.ZodEnum<{
             explicit: "explicit";
@@ -9603,8 +9501,8 @@ declare const sendQueuedMessageResponseSchema: z$1.ZodObject<{
             ultra: "ultra";
         }>;
         permissionMode: z$1.ZodEnum<{
-            "accept-edits": "accept-edits";
             auto: "auto";
+            "accept-edits": "accept-edits";
             full: "full";
         }>;
         serviceTier: z$1.ZodEnum<{
@@ -9970,9 +9868,9 @@ declare const threadWithIncludesResponseSchema: z$1.ZodObject<{
         isGitRepo: z$1.ZodBoolean;
         isWorktree: z$1.ZodBoolean;
         workspaceProvisionType: z$1.ZodEnum<{
-            personal: "personal";
-            "managed-worktree": "managed-worktree";
             unmanaged: "unmanaged";
+            "managed-worktree": "managed-worktree";
+            personal: "personal";
         }>;
         branchName: z$1.ZodNullable<z$1.ZodString>;
         baseBranch: z$1.ZodNullable<z$1.ZodString>;
@@ -10000,8 +9898,8 @@ declare const threadWithIncludesResponseSchema: z$1.ZodObject<{
             connected: "connected";
         }>;
         maxPermissionMode: z$1.ZodEnum<{
-            "accept-edits": "accept-edits";
             auto: "auto";
+            "accept-edits": "accept-edits";
             full: "full";
         }>;
         lastSeenAt: z$1.ZodNullable<z$1.ZodNumber>;
@@ -10276,8 +10174,8 @@ declare const threadQueuedMessageListResponseSchema: z$1.ZodArray<z$1.ZodObject<
         ultra: "ultra";
     }>;
     permissionMode: z$1.ZodEnum<{
-        "accept-edits": "accept-edits";
         auto: "auto";
+        "accept-edits": "accept-edits";
         full: "full";
     }>;
     serviceTier: z$1.ZodEnum<{
@@ -10643,8 +10541,8 @@ declare const threadTimelineResponseSchema: z$1.ZodObject<{
         originalModel: z$1.ZodString;
         fallbackModel: z$1.ZodString;
         reason: z$1.ZodEnum<{
-            provider: "provider";
             refusal: "refusal";
+            provider: "provider";
         }>;
         message: z$1.ZodString;
     }, z$1.core.$strip>>;
@@ -13278,8 +13176,6 @@ type ThreadDeleteResult = {
 type ThreadSendResult = {
     ok: true;
 };
-type ThreadRateLimitRecoveryResult = ProviderRateLimitRecoveryStatus;
-type ThreadContinueAfterRateLimitResult = ContinueAfterProviderRateLimitResponse;
 type ThreadEditMessageResult = EditMessageResponse;
 type ThreadStopResult = {
     ok: true;
@@ -13345,10 +13241,6 @@ interface ThreadEditMessageArgs extends EditMessageRequest {
 }
 interface ThreadActionArgs {
     threadId: string;
-}
-interface ThreadContinueAfterRateLimitArgs extends ThreadActionArgs {
-    failedRequestId: string;
-    mode: NonNullable<ContinueAfterProviderRateLimitRequest["mode"]>;
 }
 interface ThreadStatusArgs extends ThreadActionArgs {
     signal?: AbortSignal;
@@ -13500,7 +13392,6 @@ interface ThreadsArea {
     archive(args: ThreadActionArgs): Promise<ThreadArchiveResult>;
     archiveAll(args: ThreadActionArgs): Promise<ThreadArchiveAllResult>;
     childSummary(args: ThreadStatusArgs): Promise<ThreadChildSummaryResult>;
-    continueAfterRateLimit(args: ThreadContinueAfterRateLimitArgs): Promise<ThreadContinueAfterRateLimitResult>;
     compact(args: ThreadActionArgs): Promise<ThreadCompactResult>;
     cancelPlan(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
     clearGoal(args: ThreadActionArgs): Promise<ThreadBannerActionResult>;
@@ -13521,7 +13412,6 @@ interface ThreadsArea {
     pin(args: ThreadActionArgs): Promise<ThreadMutationResult>;
     promptHistory(args: ThreadPromptHistoryArgs): Promise<ThreadPromptHistoryResult>;
     queuedMessages: ThreadQueuedMessagesArea;
-    rateLimitRecovery(args: ThreadStatusArgs): Promise<ThreadRateLimitRecoveryResult>;
     reorderPinned(args: ThreadPinOrderArgs): Promise<ThreadPinOrderResult>;
     resolveMentions(args: ThreadResolveMentionsArgs): Promise<ThreadResolveMentionsResult>;
     search(args: ThreadSearchArgs): Promise<ThreadSearchResult>;
@@ -14301,6 +14191,48 @@ interface PluginEvents {
      */
     on<E extends PluginThreadEventName>(event: E, handler: PluginThreadEventHandler<E>): void;
 }
+type ExperimentalFailedTurnInspectionReason = "eligible" | "no-failed-turn" | "input-not-accepted" | "superseded" | "execution-unavailable";
+/**
+ * A failed root turn whose accepted client request is still the latest request
+ * on the thread. `events` begins at that client request and includes the
+ * failed turn plus later provider-only drain events observed by the server.
+ */
+interface ExperimentalFailedTurnCandidate {
+    completedSeq: number;
+    events: ThreadEventRow[];
+    failedRequestId: ClientTurnRequestId;
+    hostId: string;
+    providerId: string;
+    turnId: string;
+}
+type ExperimentalFailedTurnInspection = {
+    candidate: ExperimentalFailedTurnCandidate;
+    reason: "eligible";
+} | {
+    candidate: null;
+    reason: Exclude<ExperimentalFailedTurnInspectionReason, "eligible">;
+};
+/**
+ * Provider-neutral, atomic failed-turn continuation capability. Plugins own
+ * the policy that decides whether a failure should be continued; core only
+ * identifies the accepted failed turn, guards against supersession, and
+ * starts the continuation with the original execution options.
+ *
+ * Experimental — see docs/api_to_audit.md before relying on it.
+ */
+interface ExperimentalFailedTurnContinuation {
+    inspect(args: {
+        threadId: string;
+    }): Promise<ExperimentalFailedTurnInspection>;
+    continue(args: {
+        failedRequestId: ClientTurnRequestId;
+        /** Agent-visible, user-hidden instruction for the continuation turn. */
+        instruction: string;
+        threadId: string;
+    }): Promise<{
+        requestId: ClientTurnRequestId;
+    }>;
+}
 interface PluginServerApi {
     /**
      * This BB server's own loopback base URL (e.g. "http://127.0.0.1:38886"),
@@ -14377,6 +14309,8 @@ interface BbPluginApi {
     readonly ui: PluginUi;
     /** Additive plugin lifecycle listeners (design §4.5). */
     readonly events: PluginEvents;
+    /** Provider-neutral inspection and atomic continuation of failed turns. */
+    readonly experimental_failedTurnContinuation: ExperimentalFailedTurnContinuation;
     /** Plugin-reported status (needs-configuration). */
     readonly status: PluginStatusApi;
     /** Read-only facts about the running server (loopback base URL). */
@@ -14401,4 +14335,4 @@ interface BbPluginApi {
 }
 
 export { PLUGIN_CLI_OUTPUT_MAX_BYTES, defineRpcContract, experimental_defineHostEntry };
-export type { BbContext, BbNavigate, BbPluginApi, ComposerCustomization, ComposerPlusMenuItem, ComposerRichTextSpec, ComposerStructuredDraft, ComposerView, ExperimentalHostCallOptions, ExperimentalHostClient, ExperimentalHostEntry, ExperimentalHostPaths, ExperimentalHostRpcContext, ExperimentalHostRpcHandlers, ExperimentalHostSignalContract, ExperimentalHostSignalEvent, ExperimentalHostSignals, ExperimentalHostWatchChange, ExperimentalHostWatchChangeType, ExperimentalHostWatchEvent, ExperimentalHostWatchListener, ExperimentalHostWatchOptions, ExperimentalHostWatchSubscription, ExperimentalHostWorkerLease, JsonValue, MarkdownProps, NewThreadComposerProps, NewThreadRequest, PluginAgentConfiguration, PluginAgentConfigurationContext, PluginAgentToolContentPart, PluginAgentToolContext, PluginAgentToolExperimentalStatusLabels, PluginAgentToolRegistrationBase, PluginAgentToolResult, PluginAgentToolSelection, PluginAgents, PluginAppBuilder, PluginAppComposer, PluginAppContentScripts, PluginAppDefinition, PluginAppSetup, PluginAppSlots, PluginBackground, PluginCli, PluginCliCommandInfo, PluginCliContext, PluginCliExecutionResult, PluginCliOutputLimitError, PluginCliRegistration, PluginCliResult, PluginComposerApi, PluginComposerMention, PluginComposerScope, PluginComposerTextEffect, PluginComposerThreadRowStatus, PluginContentScriptContext, PluginContentScriptDisposer, PluginContentScriptRegistration, PluginEvents, PluginFileOpenerProps, PluginFileOpenerRegistration, PluginFileOpenerSource, PluginHomepageSectionProps, PluginHomepageSectionRegistration, PluginHosts, PluginHttp, PluginHttpAuthMode, PluginHttpHandler, PluginInteractionCancelReason, PluginInteractionRequest, PluginInteractionResult, PluginKvStorage, PluginLogger, PluginMentionItem, PluginMentionProviderRegistration, PluginMentionSearchContext, PluginMentionTrigger, PluginMessageActionContext, PluginMessageActionRegistration, PluginMessageActionThreadPanelOptions, PluginMessageDirectiveMessage, PluginMessageDirectiveOpenWorkspaceFile, PluginMessageDirectiveProps, PluginMessageDirectiveRegistration, PluginNavPanelProps, PluginNavPanelRegistration, PluginNewThreadPanelActionContext, PluginNewThreadPanelActionRegistration, PluginNewThreadPanelProps, PluginPendingInteractionProps, PluginPendingInteractionRegistration, PluginPendingInteractionView, PluginProviderCapabilities, PluginProviderComposerAction, PluginProviderDeclaration, PluginProviderIconRegistration, PluginProviderPermissionMode, PluginProviderReasoningLevel, PluginRealtime, PluginRealtimeConnectionState, PluginRpc, PluginRpcCallArgs, PluginRpcClient, PluginRpcContract, PluginRpcError, PluginRpcErrorCode, PluginRpcHandlers, PluginRpcIssuePathSegment, PluginRpcMethodContract, PluginRpcResult, PluginRpcValidationIssue, PluginSdkApp, PluginServerApi, PluginSettingDescriptor, PluginSettingDescriptors, PluginSettingValue, PluginSettings, PluginSettingsHandle, PluginSettingsSectionProps, PluginSettingsSectionRegistration, PluginSettingsState, PluginSettingsValues, PluginSharedPortTunnelIdentity, PluginSidebarFooterActionContext, PluginSidebarFooterActionProps, PluginSidebarFooterActionRegistration, PluginSidebarProject, PluginSidebarPullRequest, PluginSidebarSplitPane, PluginSidebarThread, PluginSidebarThreadActions, PluginSidebarThreadActivity, PluginSidebarThreadIndicator, PluginSidebarThreadPullRequestState, PluginSidebarThreadSplit, PluginSidebarThreadsState, PluginSidebarWorkspaceKind, PluginStatusApi, PluginStorage, PluginThreadEventHandler, PluginThreadEventName, PluginThreadEventPayloads, PluginThreadHeaderActionProps, PluginThreadHeaderActionRegistration, PluginThreadListProps, PluginThreadListRegistration, PluginThreadPanelActionContext, PluginThreadPanelActionRegistration, PluginThreadPanelProps, PluginUi, StandardSchemaV1, StandardSchemaV1InferInput, StandardSchemaV1InferOutput, StandardSchemaV1Issue, StandardSchemaV1Result, ThreadChatMessageAction, ThreadChatMessageReference, ThreadChatProps };
+export type { BbContext, BbNavigate, BbPluginApi, ComposerCustomization, ComposerPlusMenuItem, ComposerRichTextSpec, ComposerStructuredDraft, ComposerView, ExperimentalFailedTurnCandidate, ExperimentalFailedTurnContinuation, ExperimentalFailedTurnInspection, ExperimentalFailedTurnInspectionReason, ExperimentalHostCallOptions, ExperimentalHostClient, ExperimentalHostEntry, ExperimentalHostPaths, ExperimentalHostRpcContext, ExperimentalHostRpcHandlers, ExperimentalHostSignalContract, ExperimentalHostSignalEvent, ExperimentalHostSignals, ExperimentalHostWatchChange, ExperimentalHostWatchChangeType, ExperimentalHostWatchEvent, ExperimentalHostWatchListener, ExperimentalHostWatchOptions, ExperimentalHostWatchSubscription, ExperimentalHostWorkerLease, JsonValue, MarkdownProps, NewThreadComposerProps, NewThreadRequest, PluginAgentConfiguration, PluginAgentConfigurationContext, PluginAgentToolContentPart, PluginAgentToolContext, PluginAgentToolExperimentalStatusLabels, PluginAgentToolRegistrationBase, PluginAgentToolResult, PluginAgentToolSelection, PluginAgents, PluginAppBuilder, PluginAppComposer, PluginAppContentScripts, PluginAppDefinition, PluginAppSetup, PluginAppSlots, PluginBackground, PluginCli, PluginCliCommandInfo, PluginCliContext, PluginCliExecutionResult, PluginCliOutputLimitError, PluginCliRegistration, PluginCliResult, PluginComposerApi, PluginComposerMention, PluginComposerScope, PluginComposerTextEffect, PluginComposerThreadRowStatus, PluginContentScriptContext, PluginContentScriptDisposer, PluginContentScriptRegistration, PluginEvents, PluginFileOpenerProps, PluginFileOpenerRegistration, PluginFileOpenerSource, PluginHomepageSectionProps, PluginHomepageSectionRegistration, PluginHosts, PluginHttp, PluginHttpAuthMode, PluginHttpHandler, PluginInteractionCancelReason, PluginInteractionRequest, PluginInteractionResult, PluginKvStorage, PluginLogger, PluginMentionItem, PluginMentionProviderRegistration, PluginMentionSearchContext, PluginMentionTrigger, PluginMessageActionContext, PluginMessageActionRegistration, PluginMessageActionThreadPanelOptions, PluginMessageDirectiveMessage, PluginMessageDirectiveOpenWorkspaceFile, PluginMessageDirectiveProps, PluginMessageDirectiveRegistration, PluginNavPanelProps, PluginNavPanelRegistration, PluginNewThreadPanelActionContext, PluginNewThreadPanelActionRegistration, PluginNewThreadPanelProps, PluginPendingInteractionProps, PluginPendingInteractionRegistration, PluginPendingInteractionView, PluginProviderCapabilities, PluginProviderComposerAction, PluginProviderDeclaration, PluginProviderIconRegistration, PluginProviderPermissionMode, PluginProviderReasoningLevel, PluginRealtime, PluginRealtimeConnectionState, PluginRpc, PluginRpcCallArgs, PluginRpcClient, PluginRpcContract, PluginRpcError, PluginRpcErrorCode, PluginRpcHandlers, PluginRpcIssuePathSegment, PluginRpcMethodContract, PluginRpcResult, PluginRpcValidationIssue, PluginSdkApp, PluginServerApi, PluginSettingDescriptor, PluginSettingDescriptors, PluginSettingValue, PluginSettings, PluginSettingsHandle, PluginSettingsSectionProps, PluginSettingsSectionRegistration, PluginSettingsState, PluginSettingsValues, PluginSharedPortTunnelIdentity, PluginSidebarFooterActionContext, PluginSidebarFooterActionProps, PluginSidebarFooterActionRegistration, PluginSidebarProject, PluginSidebarPullRequest, PluginSidebarSplitPane, PluginSidebarThread, PluginSidebarThreadActions, PluginSidebarThreadActivity, PluginSidebarThreadIndicator, PluginSidebarThreadPullRequestState, PluginSidebarThreadSplit, PluginSidebarThreadsState, PluginSidebarWorkspaceKind, PluginStatusApi, PluginStorage, PluginThreadEventHandler, PluginThreadEventName, PluginThreadEventPayloads, PluginThreadHeaderActionProps, PluginThreadHeaderActionRegistration, PluginThreadListProps, PluginThreadListRegistration, PluginThreadPanelActionContext, PluginThreadPanelActionRegistration, PluginThreadPanelProps, PluginUi, StandardSchemaV1, StandardSchemaV1InferInput, StandardSchemaV1InferOutput, StandardSchemaV1Issue, StandardSchemaV1Result, ThreadChatMessageAction, ThreadChatMessageReference, ThreadChatProps };
