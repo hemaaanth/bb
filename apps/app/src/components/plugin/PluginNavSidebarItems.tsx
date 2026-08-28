@@ -45,7 +45,6 @@ import { usePaneContentSplitDrag } from "@/components/sidebar/usePaneContentSpli
 import { usePaneContentSplitIndicator } from "@/components/sidebar/paneContentSplitIndicator";
 import type { MiniMapSlot } from "@/components/sidebar/paneContentSplitIndicator";
 import { SplitPaneMiniMap } from "@/components/sidebar/SplitPaneMiniMap";
-import { SIDEBAR_MORE_ACTION_TRIGGER_CLASS } from "@/components/sidebar/sidebarRowClasses";
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
   SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
@@ -554,7 +553,10 @@ function SidebarNavRowChrome({
             }
             className={cn(
               SIDEBAR_HOVER_ACTIONS_CLASS,
-              "absolute inset-y-0 right-0 flex items-center",
+              // Match thread-row action geometry: the visible 28px button owns
+              // the full action column instead of centering a 20px tile inside
+              // a larger invisible hit target.
+              "absolute inset-y-0 right-1 flex items-center",
             )}
           >
             <DropdownMenu onOpenChange={setIsActionsOpen}>
@@ -565,9 +567,10 @@ function SidebarNavRowChrome({
                   size="icon"
                   aria-label={`${title} panel options`}
                   className={cn(
-                    "rounded-md p-0 text-muted-foreground",
-                    "data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground",
-                    SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
+                    "size-7 rounded-md p-0 text-muted-foreground",
+                    "hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    "data-[state=open]:bg-sidebar-accent data-[state=open]:text-muted-foreground",
+                    "max-md:pointer-coarse:size-9",
                   )}
                 >
                   <Icon

@@ -24,7 +24,7 @@ branch. Under the hood it's `git worktree add` plus some bookkeeping:
 - It lives at `<BB_DATA_DIR>/worktrees/<environment-id>/<repo-name>` — for
   example, `~/.bb/worktrees/env_abc.../myrepo`.
 - Once every thread using the environment is archived or deleted, bb cleans the
-  worktree up (`git worktree remove --force`) along with the branch.
+  worktree up (`git worktree remove --force`). The Git branch remains.
 
 ## Start a thread in a worktree
 
@@ -109,13 +109,63 @@ Contract:
 - POSIX only — supported on macOS, Linux, and WSL2. Native Windows isn't
   supported.
 
+If `.bb-env-setup.sh` is absent, bb also accepts the existing Paseo hook in
+`paseo.json`:
+
+```json
+{
+  "worktree": {
+    "setup": "pnpm install"
+  }
+}
+```
+
+The native `.bb-env-setup.sh` takes precedence when both are present.
+
+## Run teardown with `.bb-env-teardown.sh`
+
+Commit `.bb-env-teardown.sh` at the project root to release resources owned by
+a managed worktree:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+docker compose down
+```
+
+Contract:
+
+- bb runs teardown after the last live thread releases the environment and the
+  archive undo grace window expires, but before it removes a managed worktree.
+- bb runs `env bash .bb-env-teardown.sh` from the worktree, so the script can
+  read tracked and generated files.
+- stdin is closed. stdout and stderr stream into the environment destroy
+  transcript.
+- A non-zero exit, signal, or 15-minute timeout keeps the worktree intact and
+  marks cleanup as failed so it can be retried. Teardown should be idempotent.
+- The script receives the same sanitized environment as the setup script.
+- POSIX only — supported on macOS, Linux, and WSL2. Native Windows isn't
+  supported.
+
+If `.bb-env-teardown.sh` is absent, bb falls back to
+`paseo.json`'s `worktree.teardown` command. The native script takes precedence
+when both are present.
+
+Paseo fallback hooks receive:
+
+- `PASEO_SOURCE_CHECKOUT_PATH` — the canonical source checkout
+- `PASEO_WORKTREE_PATH` — the managed worktree
+- `PASEO_BRANCH_NAME` — the worktree branch
+
+Paseo variables are supplied only to Paseo fallback commands.
+
 ## Cleanup
 
-You don't need to clean up worktrees by hand — bb removes them once every
-thread using the environment is archived or deleted, and the branch goes with
-it. If you
-want to keep work the agent did, commit and push (or open a PR) from inside
-the worktree before letting the thread go.
+bb removes a managed worktree once every thread using the environment is
+archived or deleted and teardown succeeds. Its Git branch remains available.
+If you want the work outside the local repository, commit and push (or open a
+PR) from inside the worktree before letting the thread go.
 
 Before bb removes the directory, it stops every process whose working
 directory is inside the worktree — the agent's provider process, its
@@ -125,32 +175,6 @@ an editor terminal. Each process gets `SIGTERM`, then `SIGKILL` after a
 short grace period. Move your own shells out of the worktree before you
 delete the environment if you want to keep them.
 
-## Run teardown with `.bb-env-teardown.sh`
-
-Commit a file named `.bb-env-teardown.sh` at the project root when setup
-creates resources outside the worktree. For example, the script can remove a
-database, a proxy registration, a container, or a port reservation.
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-docker rm -f "my-project-${USER}"
-```
-
-Contract:
-
-- bb runs the script only when it destroys a managed worktree.
-- bb runs `env bash .bb-env-teardown.sh` from the worktree before it removes
-  the worktree, so the script can read tracked and generated files.
-- stdin is closed. bb records stdout and stderr in the environment destroy
-  transcript.
-- The script gets a separate 15-minute timeout.
-- A non-zero exit, a signal, or a timeout reports a failure. It never stops bb
-  from removing the worktree.
-- The script receives the same sanitized environment as the setup script.
-- POSIX only — supported on macOS, Linux, and WSL2. Native Windows isn't
-  supported.
 
 ## If something isn't working
 
@@ -167,5 +191,7 @@ A few quick checks:
    prompts for input will time out at 15 minutes.
 4. Run `bash .bb-env-setup.sh` manually in a clean clone to verify it works
    outside bb before debugging through the provisioning transcript.
-5. Run `bash .bb-env-teardown.sh` manually before you delete a test worktree.
-   Confirm that repeated runs do not fail or remove shared resources.
+5. If teardown fails, run the declared teardown command manually from the
+   worktree. Confirm that repeated runs do not fail or remove shared resources.
+   bb intentionally leaves the worktree in place instead of deleting partially
+   cleaned-up state.

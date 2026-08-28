@@ -17,6 +17,7 @@ import {
 import { Workspace } from "./workspace.js";
 import { tryWithCheckoutMutationLock } from "./checkout-mutation-lock.js";
 import {
+  getGitCommonDir,
   pathExists,
   readDefaultBranch,
   readGitRepositoryState,
@@ -55,23 +56,21 @@ interface CreateWorkspaceArgs {
   signal?: AbortSignal;
 }
 
-interface RunSetupScriptArgs {
+interface RunWorkspaceHookArgs {
   workspacePath: string;
   timeoutMs: number;
   shellPath?: string;
+  sourceCheckoutPath?: string;
+  branchName?: string;
   onProgress?: ProgressCallback;
   signal?: AbortSignal;
 }
 
-interface RunTeardownScriptArgs {
-  workspacePath: string;
-  timeoutMs: number;
-  /** Resolved user-shell PATH. Falls back to the daemon process PATH. */
-  shellPath?: string;
-  onProgress?: ProgressCallback;
-}
+export interface RunSetupScriptArgs extends RunWorkspaceHookArgs {}
 
-interface RemoveWorktreeArgs {
+export interface RunTeardownScriptArgs extends RunWorkspaceHookArgs {}
+
+export interface RemoveWorktreeArgs {
   path: string;
   /** Teardown script timeout in ms. Controlled by the server. */
   timeoutMs: number;
@@ -87,17 +86,20 @@ interface LifecycleScriptCommand {
   text: string;
 }
 
+interface WorkspaceHookCommand extends LifecycleScriptCommand {
+  source: "bb" | "paseo";
+  displayName: string;
+}
+
+type WorkspaceHookPhase = "setup" | "teardown";
+
 interface BuildLifecycleScriptCommandArgs {
   platform: NodeJS.Platform;
   scriptPath: string;
 }
 
-interface RunLifecycleScriptArgs extends RunSetupScriptArgs {
-  kind: "setup" | "teardown";
-  scriptName: string;
-}
-
 const SETUP_SCRIPT_ABORT_KILL_GRACE_MS = 2_000;
+const PASEO_MANIFEST_FILE_NAME = "paseo.json";
 
 function emitProgress(
   onProgress: ProgressCallback | undefined,
@@ -194,12 +196,117 @@ async function ensureWorkspaceParentDirectory(
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
 }
 
-async function resolveLifecycleScriptPath(
+function workspaceHookScriptName(phase: WorkspaceHookPhase): string {
+  return phase === "setup"
+    ? DEFAULT_ENV_SETUP_SCRIPT_NAME
+    : DEFAULT_ENV_TEARDOWN_SCRIPT_NAME;
+}
+
+function workspaceHookFailureCode(phase: WorkspaceHookPhase): string {
+  return phase === "setup" ? "setup_script_failed" : "teardown_script_failed";
+}
+
+function workspaceHookTitle(phase: WorkspaceHookPhase): string {
+  return phase === "setup" ? "Setup" : "Teardown";
+}
+
+function parsePaseoHook(
+  content: string,
+  phase: WorkspaceHookPhase,
+): string | null {
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(content);
+  } catch (error) {
+    throw new WorkspaceError(
+      workspaceHookFailureCode(phase),
+      `${PASEO_MANIFEST_FILE_NAME} is not valid JSON`,
+      { cause: error },
+    );
+  }
+  if (
+    typeof manifest !== "object" ||
+    manifest === null ||
+    Array.isArray(manifest)
+  ) {
+    throw new WorkspaceError(
+      workspaceHookFailureCode(phase),
+      `${PASEO_MANIFEST_FILE_NAME} must contain a JSON object`,
+    );
+  }
+  const worktree = Reflect.get(manifest, "worktree");
+  if (worktree === undefined) {
+    return null;
+  }
+  if (
+    typeof worktree !== "object" ||
+    worktree === null ||
+    Array.isArray(worktree)
+  ) {
+    throw new WorkspaceError(
+      workspaceHookFailureCode(phase),
+      `${PASEO_MANIFEST_FILE_NAME} worktree must contain a JSON object`,
+    );
+  }
+  const hook = Reflect.get(worktree, phase);
+  if (hook === undefined) {
+    return null;
+  }
+  if (typeof hook !== "string" || hook.trim().length === 0) {
+    throw new WorkspaceError(
+      workspaceHookFailureCode(phase),
+      `${PASEO_MANIFEST_FILE_NAME} worktree.${phase} must be a non-empty string`,
+    );
+  }
+  return hook;
+}
+
+function buildPaseoHookCommand(
+  phase: WorkspaceHookPhase,
+  command: string,
+): WorkspaceHookCommand {
+  if (process.platform === "win32") {
+    throw new WorkspaceError(
+      workspaceHookFailureCode(phase),
+      `POSIX shell workspace hooks are not supported on Windows: ${PASEO_MANIFEST_FILE_NAME} worktree.${phase}`,
+    );
+  }
+  return {
+    command: "env",
+    args: ["bash", "-lc", command],
+    text: `env bash -lc ${PASEO_MANIFEST_FILE_NAME} worktree.${phase}`,
+    source: "paseo",
+    displayName: `${PASEO_MANIFEST_FILE_NAME} worktree.${phase}`,
+  };
+}
+
+async function resolveWorkspaceHookCommand(
   workspacePath: string,
-  scriptName: string,
-): Promise<string | null> {
+  phase: WorkspaceHookPhase,
+): Promise<WorkspaceHookCommand | null> {
+  const scriptName = workspaceHookScriptName(phase);
   const scriptPath = path.join(workspacePath, scriptName);
-  return (await pathExists(scriptPath)) ? scriptPath : null;
+  if (await pathExists(scriptPath)) {
+    const command =
+      phase === "setup"
+        ? buildSetupScriptCommand({ platform: process.platform, scriptPath })
+        : buildTeardownScriptCommand({
+            platform: process.platform,
+            scriptPath,
+          });
+    return {
+      ...command,
+      source: "bb",
+      displayName: scriptName,
+    };
+  }
+
+  const manifestPath = path.join(workspacePath, PASEO_MANIFEST_FILE_NAME);
+  if (!(await pathExists(manifestPath))) {
+    return null;
+  }
+  const hook = parsePaseoHook(await fs.readFile(manifestPath, "utf8"), phase);
+  return hook === null ? null : buildPaseoHookCommand(phase, hook);
 }
 
 export function buildSetupScriptCommand(
@@ -219,10 +326,12 @@ export function buildSetupScriptCommand(
   };
 }
 
-function buildTeardownScriptCommand(args: BuildLifecycleScriptCommandArgs) {
+function buildTeardownScriptCommand(
+  args: BuildLifecycleScriptCommandArgs,
+): LifecycleScriptCommand {
   if (args.platform === "win32") {
     throw new WorkspaceError(
-      "setup_script_failed",
+      "teardown_script_failed",
       `POSIX shell teardown scripts are not supported on Windows: ${DEFAULT_ENV_TEARDOWN_SCRIPT_NAME}`,
     );
   }
@@ -457,6 +566,8 @@ export async function createWorktree(
       workspacePath: args.targetPath,
       timeoutMs: args.timeoutMs,
       shellPath: args.shellPath,
+      sourceCheckoutPath: args.sourcePath,
+      branchName: args.branchName,
       onProgress: args.onProgress,
       signal: args.signal,
     });
@@ -560,32 +671,44 @@ async function copyIncludedFiles(args: {
   });
 }
 
-async function runLifecycleScript(
-  args: RunLifecycleScriptArgs,
-): Promise<{ ran: boolean; exitCode?: number; output?: string }> {
-  if (args.kind === "setup") {
-    throwIfProvisionAborted(args.signal);
+async function resolvePaseoSourceCheckoutPath(
+  workspacePath: string,
+): Promise<string> {
+  try {
+    const commonGitDir = await getGitCommonDir(workspacePath);
+    if (path.basename(commonGitDir) === ".git") {
+      return path.dirname(commonGitDir);
+    }
+  } catch {
+    // A standalone non-Git workspace has no source checkout.
   }
-  const scriptPath = await resolveLifecycleScriptPath(
-    args.workspacePath,
-    args.scriptName,
-  );
-  if (!scriptPath) {
+  return workspacePath;
+}
+
+async function resolvePaseoBranchName(workspacePath: string): Promise<string> {
+  try {
+    return (await new Workspace(workspacePath).currentBranch) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function runWorkspaceHook(
+  phase: WorkspaceHookPhase,
+  args: RunWorkspaceHookArgs,
+): Promise<{ ran: boolean; exitCode?: number; output?: string }> {
+  throwIfProvisionAborted(args.signal);
+  const command = await resolveWorkspaceHookCommand(args.workspacePath, phase);
+  if (command === null) {
     return { ran: false };
   }
 
-  if (args.kind === "setup") {
-    throwIfProvisionAborted(args.signal);
-  }
-  const command =
-    args.kind === "setup"
-      ? buildSetupScriptCommand({ platform: process.platform, scriptPath })
-      : buildTeardownScriptCommand({ platform: process.platform, scriptPath });
+  throwIfProvisionAborted(args.signal);
   const startedAt = Date.now();
   emitStep({
     onProgress: args.onProgress,
-    key: `${args.kind}-started`,
-    text: `Running ${args.scriptName}`,
+    key: `${phase}-started`,
+    text: `Running ${command.displayName}`,
     status: "started",
     startedAt,
   });
@@ -595,6 +718,14 @@ async function runLifecycleScript(
     env: process.env,
     ...(args.shellPath !== undefined ? { shellPath: args.shellPath } : {}),
   });
+  if (command.source === "paseo") {
+    env.PASEO_SOURCE_CHECKOUT_PATH =
+      args.sourceCheckoutPath ??
+      (await resolvePaseoSourceCheckoutPath(args.workspacePath));
+    env.PASEO_WORKTREE_PATH = args.workspacePath;
+    env.PASEO_BRANCH_NAME =
+      args.branchName ?? (await resolvePaseoBranchName(args.workspacePath));
+  }
   const child = spawnPortableOutputProcess({
     command: command.command,
     args: command.args,
@@ -610,17 +741,17 @@ async function runLifecycleScript(
   let abortRequested = false;
   let timedOut = false;
 
-  const emitScriptOutputLines = (lines: string[]): void => {
+  const emitHookOutputLines = (lines: string[]): void => {
     for (const line of lines) {
       outputIndex += 1;
-      emitOutput(args.onProgress, `${args.kind}-output-${outputIndex}`, line);
+      emitOutput(args.onProgress, `${phase}-output-${outputIndex}`, line);
     }
   };
 
   const handleChunk = (chunk: Buffer) => {
     const text = chunk.toString("utf8");
     outputChunks.push(text);
-    emitScriptOutputLines(outputLineReader.push(text));
+    emitHookOutputLines(outputLineReader.push(text));
   };
 
   child.stdout.on("data", handleChunk);
@@ -633,7 +764,7 @@ async function runLifecycleScript(
       signal: "SIGKILL",
     });
   }, timeoutMs);
-  const abortLifecycleScript = () => {
+  const abortHook = () => {
     if (abortRequested) {
       return;
     }
@@ -649,13 +780,9 @@ async function runLifecycleScript(
       });
     }, SETUP_SCRIPT_ABORT_KILL_GRACE_MS);
   };
-  if (args.kind === "setup") {
-    args.signal?.addEventListener("abort", abortLifecycleScript, {
-      once: true,
-    });
-    if (args.signal?.aborted) {
-      abortLifecycleScript();
-    }
+  args.signal?.addEventListener("abort", abortHook, { once: true });
+  if (args.signal?.aborted) {
+    abortHook();
   }
 
   try {
@@ -668,13 +795,13 @@ async function runLifecycleScript(
     });
 
     const output = outputChunks.join("");
-    emitScriptOutputLines(outputLineReader.flush());
+    emitHookOutputLines(outputLineReader.flush());
     const durationMs = Date.now() - startedAt;
-    if (args.kind === "setup" && (abortRequested || args.signal?.aborted)) {
+    if (phase === "setup" && (abortRequested || args.signal?.aborted)) {
       emitStep({
         onProgress: args.onProgress,
-        key: `${args.kind}-cancelled`,
-        text: `${args.scriptName} cancelled`,
+        key: `${phase}-cancelled`,
+        text: `${command.displayName} cancelled`,
         status: "failed",
         startedAt,
         metadata: { durationMs },
@@ -685,52 +812,52 @@ async function runLifecycleScript(
     if (timedOut) {
       emitStep({
         onProgress: args.onProgress,
-        key: `${args.kind}-failed`,
-        text: `${args.scriptName} failed`,
+        key: `${phase}-failed`,
+        text: `${command.displayName} failed`,
         status: "failed",
         startedAt,
         metadata: { durationMs },
       });
       throw new WorkspaceError(
-        "setup_script_failed",
-        `${args.kind === "setup" ? "Setup" : "Teardown"} script timed out after ${timeoutMs}ms: ${scriptPath}`,
+        workspaceHookFailureCode(phase),
+        `${workspaceHookTitle(phase)} script timed out after ${timeoutMs}ms: ${command.displayName}`,
       );
     }
 
     if (result.signal) {
       emitStep({
         onProgress: args.onProgress,
-        key: `${args.kind}-failed`,
-        text: `${args.scriptName} failed`,
+        key: `${phase}-failed`,
+        text: `${command.displayName} failed`,
         status: "failed",
         startedAt,
         metadata: { durationMs },
       });
       throw new WorkspaceError(
-        "setup_script_failed",
-        `${args.kind === "setup" ? "Setup" : "Teardown"} script exited via signal ${result.signal}: ${scriptPath}`,
+        workspaceHookFailureCode(phase),
+        `${workspaceHookTitle(phase)} script exited via signal ${result.signal}: ${command.displayName}`,
       );
     }
 
     if ((result.exitCode ?? 0) !== 0) {
       emitStep({
         onProgress: args.onProgress,
-        key: `${args.kind}-failed`,
-        text: `${args.scriptName} failed`,
+        key: `${phase}-failed`,
+        text: `${command.displayName} failed`,
         status: "failed",
         startedAt,
         metadata: { durationMs },
       });
       throw new WorkspaceError(
-        "setup_script_failed",
-        `${args.kind === "setup" ? "Setup" : "Teardown"} script failed with exit code ${result.exitCode}: ${scriptPath}`,
+        workspaceHookFailureCode(phase),
+        `${workspaceHookTitle(phase)} script failed with exit code ${result.exitCode}: ${command.displayName}`,
       );
     }
 
     emitStep({
       onProgress: args.onProgress,
-      key: `${args.kind}-completed`,
-      text: `${args.scriptName} finished`,
+      key: `${phase}-completed`,
+      text: `${command.displayName} finished`,
       status: "completed",
       startedAt,
       metadata: { durationMs },
@@ -738,61 +865,21 @@ async function runLifecycleScript(
     return { ran: true, exitCode: result.exitCode ?? 0, output };
   } finally {
     clearTimeout(timeout);
-    if (abortKillTimeout) {
-      clearTimeout(abortKillTimeout);
-    }
-    if (args.kind === "setup") {
-      args.signal?.removeEventListener("abort", abortLifecycleScript);
-    }
+    clearTimeout(abortKillTimeout);
+    args.signal?.removeEventListener("abort", abortHook);
   }
 }
 
 export function runSetupScript(
   args: RunSetupScriptArgs,
 ): Promise<{ ran: boolean; exitCode?: number; output?: string }> {
-  return runLifecycleScript({
-    ...args,
-    kind: "setup",
-    scriptName: DEFAULT_ENV_SETUP_SCRIPT_NAME,
-  });
+  return runWorkspaceHook("setup", args);
 }
 
-export async function runTeardownScript(
+export function runTeardownScript(
   args: RunTeardownScriptArgs,
 ): Promise<{ ran: boolean; exitCode?: number; output?: string }> {
-  const startedAt = Date.now();
-  let failureReported = false;
-  const onProgress: ProgressCallback = (entry) => {
-    if (entry.type === "step" && entry.key === "teardown-failed") {
-      failureReported = true;
-    }
-    args.onProgress?.(entry);
-  };
-  try {
-    return await runLifecycleScript({
-      ...args,
-      onProgress,
-      kind: "teardown",
-      scriptName: DEFAULT_ENV_TEARDOWN_SCRIPT_NAME,
-    });
-  } catch (error) {
-    if (!failureReported) {
-      emitStep({
-        onProgress: args.onProgress,
-        key: "teardown-failed",
-        text: `${DEFAULT_ENV_TEARDOWN_SCRIPT_NAME} failed`,
-        status: "failed",
-        startedAt,
-        metadata: { durationMs: Date.now() - startedAt },
-      });
-    }
-    emitOutput(
-      args.onProgress,
-      "teardown-error",
-      error instanceof Error ? error.message : String(error),
-    );
-    return { ran: true };
-  }
+  return runWorkspaceHook("teardown", args);
 }
 
 export async function removeWorktree(args: RemoveWorktreeArgs): Promise<void> {

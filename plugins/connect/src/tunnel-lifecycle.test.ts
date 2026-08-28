@@ -192,7 +192,6 @@ describe("ConnectTunnel socket lifecycle", () => {
       await fakeHost.harness.dispose();
     }
   });
-
   it("retries an HTTP rejection without waiting for close", async () => {
     vi.useFakeTimers();
     const { fakeHost, tunnel } = createTunnelFixture();
