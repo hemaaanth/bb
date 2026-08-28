@@ -165,11 +165,10 @@ describe("PluginNavSidebarItems", () => {
     expect(accessory?.textContent).toBe("123456789012345678901234567890");
     expect(screen.getByRole("button", { name: "Tasks" })).not.toBeNull();
     expect(
-      screen.getByRole("button", { name: "Tasks" }).classList.contains("pr-18"),
+      screen.getByRole("button", { name: "Tasks" }).classList.contains("pr-24"),
     ).toBe(true);
     for (const className of [
-      "bb-sidebar-hover-actions-fade",
-      "right-1",
+      "right-8",
       "min-w-5",
       "max-h-5",
       "max-w-16",
@@ -180,9 +179,12 @@ describe("PluginNavSidebarItems", () => {
     ]) {
       expect(accessory?.classList.contains(className), className).toBe(true);
     }
+    expect(accessory?.classList.contains("bb-sidebar-hover-actions-fade")).toBe(
+      false,
+    );
   });
 
-  it("matches thread-row action trigger geometry", () => {
+  it("matches the native thread-row action trigger", () => {
     registerPanel("tasks", "Tasks");
 
     const view = renderSidebarItems();
@@ -193,12 +195,14 @@ describe("PluginNavSidebarItems", () => {
       "[data-sidebar-hover-actions-mobile]",
     );
 
-    expect(trigger.classList.contains("size-7")).toBe(true);
-    expect(trigger.classList.contains("m-1")).toBe(false);
-    expect(actionColumn?.classList.contains("right-1")).toBe(true);
+    for (const className of ["m-1", "h-5", "w-5", "text-subtle-foreground"]) {
+      expect(trigger.classList.contains(className), className).toBe(true);
+    }
+    expect(trigger.classList.contains("size-7")).toBe(false);
+    expect(actionColumn?.classList.contains("right-0")).toBe(true);
   });
 
-  it("replaces a live accessory with row options without remounting it", async () => {
+  it("keeps a live accessory visible while row options are open", async () => {
     let mounts = 0;
     let unmounts = 0;
     function LiveAccessory() {
@@ -233,6 +237,9 @@ describe("PluginNavSidebarItems", () => {
 
     expect(accessory?.getAttribute("data-sidebar-hover-actions-open")).toBe(
       "true",
+    );
+    expect(accessory?.classList.contains("bb-sidebar-hover-actions-fade")).toBe(
+      false,
     );
     expect(mounts).toBe(1);
     expect(unmounts).toBe(0);

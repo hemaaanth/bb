@@ -34,6 +34,7 @@ import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { PluginIcon } from "@/components/plugin/PluginIcon";
 import { PluginSlotMount } from "@/components/plugin/PluginSlotMount";
 import { PROJECT_LIST_ACTION_BUTTON_CLASS } from "@/components/sidebar/ProjectList";
+import { SIDEBAR_MORE_ACTION_TRIGGER_CLASS } from "@/components/sidebar/sidebarRowClasses";
 import { getPluginPanelRoutePath } from "@/lib/route-paths";
 import {
   usePluginNavPanelChrome,
@@ -47,7 +48,6 @@ import type { MiniMapSlot } from "@/components/sidebar/paneContentSplitIndicator
 import { SplitPaneMiniMap } from "@/components/sidebar/SplitPaneMiniMap";
 import {
   SIDEBAR_HOVER_ACTIONS_CLASS,
-  SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
   SIDEBAR_HOVER_ACTIONS_MOBILE_ALWAYS_VALUE,
   SIDEBAR_HOVER_ACTIONS_ROW_CLASS,
 } from "@/components/ui/sidebar-hover-actions";
@@ -510,7 +510,7 @@ function SidebarNavRowChrome({
             className={cn(
               PROJECT_LIST_ACTION_BUTTON_CLASS,
               "w-full pr-7",
-              accessory && "pr-18",
+              accessory && "pr-24",
               isActive && "bg-sidebar-accent text-sidebar-foreground",
               isHidden && "text-subtle-foreground",
             )}
@@ -538,10 +538,7 @@ function SidebarNavRowChrome({
               data-sidebar-hover-actions-open={
                 isActionsOpen ? "true" : undefined
               }
-              className={cn(
-                SIDEBAR_HOVER_ACTIONS_FADE_CLASS,
-                "pointer-events-none absolute right-1 top-1/2 block min-w-5 max-h-5 max-w-16 -translate-y-1/2 overflow-hidden text-xs text-ellipsis whitespace-nowrap text-center leading-5",
-              )}
+              className="pointer-events-none absolute right-8 top-1/2 block min-w-5 max-h-5 max-w-16 -translate-y-1/2 overflow-hidden text-xs text-ellipsis whitespace-nowrap text-center leading-5"
             >
               {accessory}
             </span>
@@ -553,10 +550,7 @@ function SidebarNavRowChrome({
             }
             className={cn(
               SIDEBAR_HOVER_ACTIONS_CLASS,
-              // Match thread-row action geometry: the visible 28px button owns
-              // the full action column instead of centering a 20px tile inside
-              // a larger invisible hit target.
-              "absolute inset-y-0 right-1 flex items-center",
+              "absolute inset-y-0 right-0 flex items-center",
             )}
           >
             <DropdownMenu onOpenChange={setIsActionsOpen}>
@@ -567,10 +561,9 @@ function SidebarNavRowChrome({
                   size="icon"
                   aria-label={`${title} panel options`}
                   className={cn(
-                    "size-7 rounded-md p-0 text-muted-foreground",
-                    "hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                    "data-[state=open]:bg-sidebar-accent data-[state=open]:text-muted-foreground",
-                    "max-md:pointer-coarse:size-9",
+                    "rounded-md p-0 text-subtle-foreground hover:bg-transparent hover:text-foreground",
+                    SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
+                    "data-[state=open]:bg-state-active data-[state=open]:text-foreground",
                   )}
                 >
                   <Icon
