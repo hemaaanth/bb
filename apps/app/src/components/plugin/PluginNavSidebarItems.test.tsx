@@ -186,6 +186,22 @@ describe("PluginNavSidebarItems", () => {
     }
   });
 
+  it("matches thread-row action trigger geometry", () => {
+    registerPanel("tasks", "Tasks");
+
+    const view = renderSidebarItems();
+    const trigger = screen.getByRole("button", {
+      name: "Tasks panel options",
+    });
+    const actionColumn = view.container.querySelector(
+      "[data-sidebar-hover-actions-mobile]",
+    );
+
+    expect(trigger.classList.contains("size-7")).toBe(true);
+    expect(trigger.classList.contains("m-1")).toBe(false);
+    expect(actionColumn?.classList.contains("right-1")).toBe(true);
+  });
+
   it("replaces a live accessory with row options without remounting it", async () => {
     let mounts = 0;
     let unmounts = 0;
