@@ -184,7 +184,7 @@ describe("PluginNavSidebarItems", () => {
     );
   });
 
-  it("matches the native thread-row action trigger", () => {
+  it("keeps the native plugin-nav action trigger", () => {
     registerPanel("tasks", "Tasks");
 
     const view = renderSidebarItems();
@@ -195,10 +195,12 @@ describe("PluginNavSidebarItems", () => {
       "[data-sidebar-hover-actions-mobile]",
     );
 
-    for (const className of ["m-1", "h-5", "w-5", "text-subtle-foreground"]) {
+    for (const className of ["m-1", "h-5", "w-5", "text-muted-foreground"]) {
       expect(trigger.classList.contains(className), className).toBe(true);
     }
-    expect(trigger.classList.contains("size-7")).toBe(false);
+    expect(
+      trigger.classList.contains("data-[state=open]:bg-sidebar-accent"),
+    ).toBe(true);
     expect(actionColumn?.classList.contains("right-0")).toBe(true);
   });
 

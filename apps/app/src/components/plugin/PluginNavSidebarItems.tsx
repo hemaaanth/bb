@@ -561,9 +561,9 @@ function SidebarNavRowChrome({
                   size="icon"
                   aria-label={`${title} panel options`}
                   className={cn(
-                    "rounded-md p-0 text-subtle-foreground hover:bg-transparent hover:text-foreground",
+                    "rounded-md p-0 text-muted-foreground",
+                    "data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground",
                     SIDEBAR_MORE_ACTION_TRIGGER_CLASS,
-                    "data-[state=open]:bg-state-active data-[state=open]:text-foreground",
                   )}
                 >
                   <Icon
