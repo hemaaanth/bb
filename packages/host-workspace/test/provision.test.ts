@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_ENV_SETUP_SCRIPT_NAME,
+  DEFAULT_ENV_TEARDOWN_SCRIPT_NAME,
   type ProvisioningTranscriptEntry,
 } from "@bb/domain";
 import { createDeferredPromise } from "@bb/test-helpers";
@@ -20,7 +21,14 @@ async function makeTempDir(prefix: string): Promise<string> {
   return dir;
 }
 
-async function initRepo(opts?: { setupScript?: string }): Promise<string> {
+async function initRepo(opts?: {
+  setupScript?: string;
+  teardownScript?: string;
+  paseoWorktree?: {
+    setup?: string;
+    teardown?: string;
+  };
+}): Promise<string> {
   const repoPath = await makeTempDir("bb-provision-repo-");
   await runGit(["init", "-b", "main"], { cwd: repoPath });
   await runGit(["config", "user.name", "BB Tests"], { cwd: repoPath });
@@ -30,6 +38,20 @@ async function initRepo(opts?: { setupScript?: string }): Promise<string> {
     await fs.writeFile(
       path.join(repoPath, DEFAULT_ENV_SETUP_SCRIPT_NAME),
       opts.setupScript,
+      "utf8",
+    );
+  }
+  if (opts?.teardownScript) {
+    await fs.writeFile(
+      path.join(repoPath, DEFAULT_ENV_TEARDOWN_SCRIPT_NAME),
+      opts.teardownScript,
+      "utf8",
+    );
+  }
+  if (opts?.paseoWorktree) {
+    await fs.writeFile(
+      path.join(repoPath, "paseo.json"),
+      `${JSON.stringify({ worktree: opts.paseoWorktree }, null, 2)}\n`,
       "utf8",
     );
   }
@@ -552,6 +574,91 @@ describe("provisionWorkspace", () => {
       expect(marker.trim()).toBe("worktree-setup-ran");
     });
 
+    it("prefers the native setup hook over the Paseo fallback", async () => {
+      const repoPath = await initRepo({
+        setupScript: "echo native > setup-source.txt\n",
+        paseoWorktree: {
+          setup: "echo paseo > setup-source.txt",
+        },
+      });
+      const parentDir = await makeTempDir("bb-provision-mwt-precedence-");
+      const targetPath = path.join(parentDir, "env");
+
+      const ws = await provisionWorkspace({
+        workspaceProvisionType: "managed-worktree",
+        sourcePath: repoPath,
+        targetPath,
+        branchName: "bb/env-precedence",
+        baseBranch: "main",
+        timeoutMs: 900000,
+      });
+
+      await expect(
+        fs.readFile(path.join(targetPath, "setup-source.txt"), "utf8"),
+      ).resolves.toBe("native\n");
+      await ws.destroy();
+    });
+
+    it("uses Paseo setup and teardown hooks with compatibility context", async () => {
+      const branchName = "bb/env-paseo";
+      const repoPath = await initRepo({
+        paseoWorktree: {
+          setup:
+            'printf \'%s\\n%s\\n%s\\n\' "$PASEO_SOURCE_CHECKOUT_PATH" "$PASEO_WORKTREE_PATH" "$PASEO_BRANCH_NAME" > paseo-setup-marker.txt',
+          teardown:
+            'printf \'%s\\n%s\\n%s\\n\' "$PASEO_SOURCE_CHECKOUT_PATH" "$PASEO_WORKTREE_PATH" "$PASEO_BRANCH_NAME" > "$PASEO_SOURCE_CHECKOUT_PATH/paseo-teardown-marker.txt"',
+        },
+      });
+      const parentDir = await makeTempDir("bb-provision-mwt-paseo-");
+      const targetPath = path.join(parentDir, "env");
+
+      const ws = await provisionWorkspace({
+        workspaceProvisionType: "managed-worktree",
+        sourcePath: repoPath,
+        targetPath,
+        branchName,
+        baseBranch: "main",
+        timeoutMs: 900000,
+      });
+
+      await expect(
+        fs.readFile(path.join(targetPath, "paseo-setup-marker.txt"), "utf8"),
+      ).resolves.toBe(`${repoPath}\n${targetPath}\n${branchName}\n`);
+
+      await ws.destroy();
+
+      await expect(
+        fs.readFile(path.join(repoPath, "paseo-teardown-marker.txt"), "utf8"),
+      ).resolves.toBe(`${repoPath}\n${targetPath}\n${branchName}\n`);
+      await expect(fs.stat(targetPath)).rejects.toThrow();
+    });
+
+    it("retains the managed worktree when teardown fails", async () => {
+      const repoPath = await initRepo({
+        teardownScript: "echo teardown-failed >&2\nexit 1\n",
+      });
+      const parentDir = await makeTempDir("bb-provision-mwt-teardown-fail-");
+      const targetPath = path.join(parentDir, "env");
+      const ws = await provisionWorkspace({
+        workspaceProvisionType: "managed-worktree",
+        sourcePath: repoPath,
+        targetPath,
+        branchName: "bb/env-teardown-fail",
+        baseBranch: "main",
+        timeoutMs: 900000,
+      });
+
+      await expect(ws.destroy()).rejects.toThrow(/Teardown script failed/u);
+      await expect(fs.stat(targetPath)).resolves.toBeDefined();
+      expect(
+        (
+          await runGit(["worktree", "list", "--porcelain"], {
+            cwd: repoPath,
+          })
+        ).stdout,
+      ).toContain(targetPath);
+    });
+
     it("rolls back on setup script failure", async () => {
       const repoPath = await initRepo({
         setupScript: "echo failing >&2\nexit 1\n",
@@ -743,6 +850,34 @@ describe("provisionWorkspace", () => {
       await ws.destroy();
       await expect(fs.stat(wtPath)).rejects.toThrow();
       await expect(fs.stat(envDir)).rejects.toThrow();
+    });
+
+    it("restores Paseo teardown context after reconnecting", async () => {
+      const repoPath = await initRepo({
+        paseoWorktree: {
+          teardown:
+            'printf \'%s\\n%s\\n%s\\n\' "$PASEO_SOURCE_CHECKOUT_PATH" "$PASEO_WORKTREE_PATH" "$PASEO_BRANCH_NAME" > "$PASEO_SOURCE_CHECKOUT_PATH/reconnect-teardown-marker.txt"',
+        },
+      });
+      const parentDir = await makeTempDir("bb-reconnect-wt-paseo-");
+      const wtPath = path.join(parentDir, "env");
+      await runGit(["worktree", "add", "-B", "feature", wtPath], {
+        cwd: repoPath,
+      });
+      const ws = await provisionWorkspace({
+        workspaceProvisionType: "reconnect-managed-worktree",
+        path: wtPath,
+      });
+
+      await ws.destroy();
+
+      await expect(
+        fs.readFile(
+          path.join(repoPath, "reconnect-teardown-marker.txt"),
+          "utf8",
+        ),
+      ).resolves.toBe(`${repoPath}\n${wtPath}\nfeature\n`);
+      await expect(fs.stat(wtPath)).rejects.toThrow();
     });
 
     it("throws path_not_found for non-existent path", async () => {

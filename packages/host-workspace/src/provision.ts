@@ -1,9 +1,6 @@
 import { mkdir, realpath, rm } from "node:fs/promises";
 import path from "node:path";
-import type {
-  ProvisioningTranscriptEntry,
-  WorkspaceStatus,
-} from "@bb/domain";
+import type { ProvisioningTranscriptEntry, WorkspaceStatus } from "@bb/domain";
 import type {
   CommitOptions,
   CommitResult,
@@ -31,6 +28,7 @@ import {
   createWorktree,
   removeWorktree,
   throwIfProvisionAborted,
+  runTeardownScript,
 } from "./provisioning.js";
 import {
   detectGitRepo,
@@ -141,6 +139,7 @@ interface ValidatePersonalWorkspaceTargetPathArgs {
 // ---------------------------------------------------------------------------
 
 const WORKSPACE_BRANCH_GIT_TIMEOUT_MS = 15_000;
+const WORKSPACE_TEARDOWN_TIMEOUT_MS = 15 * 60 * 1000;
 
 export interface HostWorkspace {
   /** Absolute path to the workspace directory */
@@ -736,13 +735,21 @@ async function provisionWorktree(
     isGitRepo: true,
     isWorktree: true,
     shellPath: opts.shellPath,
-    destroyFn: () =>
-      removeWorktree({
+    destroyFn: async () => {
+      await runTeardownScript({
+        workspacePath: wsPath,
+        timeoutMs: opts.timeoutMs,
+        shellPath: opts.shellPath,
+        sourceCheckoutPath: opts.sourcePath,
+        branchName: opts.branchName,
+      });
+      await removeWorktree({
         path: wsPath,
         force: true,
         pruneEmptyParent: true,
         shellPath: opts.shellPath,
-      }),
+      });
+    },
   });
 }
 
@@ -823,13 +830,19 @@ async function reconnectManagedWorktree(
 ): Promise<HostWorkspace> {
   return reconnectManaged(
     opts.path,
-    () =>
-      removeWorktree({
+    async () => {
+      await runTeardownScript({
+        workspacePath: opts.path,
+        timeoutMs: WORKSPACE_TEARDOWN_TIMEOUT_MS,
+        shellPath: opts.shellPath,
+      });
+      await removeWorktree({
         path: opts.path,
         force: true,
         pruneEmptyParent: true,
         shellPath: opts.shellPath,
-      }),
+      });
+    },
     opts.shellPath,
     opts.signal,
   );
