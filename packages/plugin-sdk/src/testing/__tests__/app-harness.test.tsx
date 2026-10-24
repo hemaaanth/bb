@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useEffect, useState } from "react";
-import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type {
@@ -2078,6 +2078,91 @@ it("reacts to attachment-only updates and atomic replacement through the public 
   expect(slot.getByRole("status").textContent).toBe("prefill:1:false");
   fireEvent.click(slot.getByRole("button", { name: "Replace all" }));
   expect(slot.getByRole("status").textContent).toBe(":0:true");
+});
+
+it("submits a transient before-submit draft with settled selection and preserves edits during the await", async () => {
+  let composer!: PluginComposerApi;
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  function Probe() {
+    composer = useComposer();
+    useEffect(() => composer.experimental_onBeforeSubmit(async (draft) => {
+      await pending;
+      await composer.setSelection({ providerId: "profiles", model: "profile/one" });
+      return { draft: { text: draft.text, mentions: draft.mentions.slice(1) } };
+    }), [composer]);
+    return null;
+  }
+  const draft = {
+    text: "@profile @other",
+    mentions: [
+      { kind: "plugin" as const, pluginId: "profiles", provider: "saved", id: "one", label: "profile", from: 0, to: 8 },
+      { kind: "thread" as const, threadId: "thr_other", label: "other", from: 9, to: 15 },
+    ],
+    attachments: [{ type: "localFile" as const, path: "uploads/spec.md", name: "spec.md", sourceProjectId: "proj_source" }],
+  };
+  const environment = {
+    type: "provider" as const,
+    environmentProviderId: "container",
+    machine: { type: "new" as const, machineProviderId: "cloud", inputs: { size: "small" } },
+    inputs: { branch: "main" },
+  };
+  const slot = renderSlot({ component: Probe }, {}, {
+    composer: { ...draft, selection: { projectId: "proj_one", environment, providerId: "original", model: "original" } },
+  });
+  let sending!: Promise<void>;
+  act(() => { sending = composer.submit(); });
+  await act(async () => {
+    await expect(composer.submit()).rejects.toThrow();
+    composer.replace({ ...draft, text: `${draft.text} later` });
+  });
+  expect(slot.composer.submittedDrafts).toEqual([]);
+  await act(async () => { release(); await sending; });
+  expect(slot.composer.submittedDrafts).toEqual([{ ...draft, mentions: draft.mentions.slice(1) }]);
+  expect(slot.composer.submittedSelections).toEqual([{
+    projectId: "proj_one", environment, providerId: "profiles", model: "profile/one",
+  }]);
+  expect(slot.composer.draft).toEqual({ ...draft, text: `${draft.text} later` });
+  slot.unmount();
+});
+
+it("retains the complete draft on before-submit failure and releases the hook on unmount", async () => {
+  let composer!: PluginComposerApi;
+  const failure = new Error("Profile resolution failed");
+  const listener = vi.fn(async () => { throw failure; });
+  function Probe() {
+    composer = useComposer();
+    useEffect(() => composer.experimental_onBeforeSubmit(listener), [composer]);
+    return null;
+  }
+  const slot = renderSlot({ component: Probe }, {}, {
+    composer: {
+      text: "@saved",
+      mentions: [{ kind: "plugin", pluginId: "profiles", provider: "saved", id: "one", label: "saved", from: 0, to: 6 }],
+      attachments: [{ type: "localFile", path: "uploads/a", name: "a" }],
+    },
+  });
+  const original = slot.composer.draft;
+  await act(async () => { await expect(composer.submit()).rejects.toBe(failure); });
+  expect(slot.composer.draft).toEqual(original);
+  expect(slot.composer.submittedDrafts).toEqual([]);
+  slot.unmount();
+  expect(() => composer.experimental_onBeforeSubmit(listener)).toThrow();
+  await composer.submit();
+  expect(listener).toHaveBeenCalledOnce();
+});
+
+it.each(["thread", "queued-message"] as const)("rejects before-submit registration in %s scope", (kind) => {
+  let composer!: PluginComposerApi;
+  function Probe() { composer = useComposer(); return null; }
+  const scope: PluginComposerScope = kind === "thread"
+    ? { kind, threadId: "thr_one" }
+    : { kind, threadId: "thr_one", queuedMessageId: "queued_one" };
+  const slot = renderSlot({ component: Probe }, {}, { composer: { scope } });
+  expect(() => composer.experimental_onBeforeSubmit(() => {})).toThrow();
+  slot.unmount();
 });
 
 describe("thread actions menu fake", () => {

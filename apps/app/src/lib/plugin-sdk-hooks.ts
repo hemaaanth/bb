@@ -627,11 +627,14 @@ export function useComposer(): PluginComposerApi {
     }),
     [pluginId, scopeOwnershipKey],
   );
+  const beforeSubmitSubscriptions = useMemo(() => new Set<() => void>(), [scopeOwnership]);
   const releaseVisualState = useCallback(() => {
     scopeOwnership.invalidate();
+    for (const unsubscribe of beforeSubmitSubscriptions) unsubscribe();
+    beforeSubmitSubscriptions.clear();
     setComposerTextEffect(textEffectKey, pluginId, null, visualStateOwner);
     setComposerInputLock(textEffectKey, pluginId, false, visualStateOwner);
-  }, [pluginId, scopeOwnership, textEffectKey, visualStateOwner]);
+  }, [beforeSubmitSubscriptions, pluginId, scopeOwnership, textEffectKey, visualStateOwner]);
   const registerVisualStateOwner = useCallback(() => {
     slotOwnershipRegistry?.register(visualStateOwner, releaseVisualState);
   }, [releaseVisualState, slotOwnershipRegistry, visualStateOwner]);
@@ -703,6 +706,21 @@ export function useComposer(): PluginComposerApi {
     [scope],
   );
 
+  const onBeforeSubmit = useCallback<PluginComposerApi["experimental_onBeforeSubmit"]>(
+    (listener) => {
+      if (!scopeOwnership.isActive() || !composerHost?.onBeforeSubmit) {
+        throw new Error("Before-submit hooks require a mounted New Thread composer.");
+      }
+      registerVisualStateOwner();
+      const unsubscribe = composerHost.onBeforeSubmit(listener);
+      beforeSubmitSubscriptions.add(unsubscribe);
+      return () => {
+        unsubscribe();
+        beforeSubmitSubscriptions.delete(unsubscribe);
+      };
+    },
+    [beforeSubmitSubscriptions, composerHost, registerVisualStateOwner, scopeOwnership],
+  );
   const source = useMemo<ComposerSource>(
     () =>
       composerHost ?? {
@@ -726,8 +744,9 @@ export function useComposer(): PluginComposerApi {
         setTextEffect,
         setInputLock,
         onSubmitted,
+        onBeforeSubmit,
       }),
-    [onSubmitted, pluginId, setInputLock, setTextEffect, source],
+    [onBeforeSubmit, onSubmitted, pluginId, setInputLock, setTextEffect, source],
   );
   const [binding, setBinding] = useState(() =>
     createComposerHandleBinding(textEffectKey, controller),

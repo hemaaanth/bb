@@ -602,6 +602,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "Insert or rewrite text, @-mentions, and thread pills in one step",
           "Lock the prompt box while the plugin works, then release it",
           "Write into any prompt box on screen from a panel or page",
+          "Await New Thread selection and transform only submitted input with a before-submit hook",
         ],
         apiSymbols: [
           "useComposer",
@@ -613,6 +614,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
           "PluginComposerApi.replace",
           "ComposerDraftSnapshot",
           "PluginComposerApi.insert",
+          "PluginComposerApi.experimental_onBeforeSubmit",
           "ComposerMention",
         ],
         firstParty: ["Agent Annotations", "Docs", "Send later", "Workflows"],

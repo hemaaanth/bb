@@ -150,6 +150,7 @@ import { isComposerDraftEmpty } from "../internal/composer-view.js";
 import {
   appendComposerDraft,
   createComposerHandleBinding,
+  createComposerBeforeSubmit,
   reconcileComposerMentions,
   type ComposerHandleTarget,
 } from "../internal/composer-handle.js";
@@ -285,11 +286,14 @@ export interface ComposerLog {
   mentions: PluginComposerMention[];
   focusCount: number;
   /**
-   * Every `submit` the plugin ran, in order. The harness composer has no
-   * submit pipeline of its own, so it records the options and clears the
-   * draft — enough to assert what a picker scheduled and that it tidied up.
+   * Accepted submissions in order. The harness runs the shared before-submit
+   * listeners and clears the editor only if it still matches the captured draft.
    */
   submits: ComposerSubmitOptions[];
+  /** Accepted input after before-submit listeners, without changing the editor draft. */
+  submittedDrafts: ComposerDraftSnapshot[];
+  /** Picker selections at each accepted submission. */
+  submittedSelections: Array<ComposerSelection | null>;
   /**
    * Every `setSelection` the harness composer accepted, in order. The
    * harness has no pickers of its own, so it merges accepted fields into
@@ -2778,7 +2782,7 @@ export function renderSlot<
     options.composer?.attachmentCount ?? composerAttachments.length;
   const composerLayout = options.composer?.layout ?? "expanded";
   const composerIsRunning = options.composer?.isRunning ?? false;
-  const composerIsSubmitting = options.composer?.isSubmitting ?? false;
+  let composerIsSubmitting = options.composer?.isSubmitting ?? false;
   const composerPluginId = options.pluginId ?? "test-plugin";
   let composerVersion = 0;
   const composerListeners = new Set<() => void>();
@@ -2855,12 +2859,15 @@ export function renderSlot<
     mentions: [],
     focusCount: 0,
     submits: [],
+    submittedDrafts: [],
+    submittedSelections: [],
     selections: [],
   };
   const composerOwnership = { active: true };
   const composerIsAvailable = () =>
     composerOwnership.active || composerScope.kind !== "queued-message";
   const submissionListeners = new Set<() => void>();
+  const beforeSubmit = createComposerBeforeSubmit();
   const composerTarget: ComposerHandleTarget = {
     get key() {
       return testComposerKey(composerScope);
@@ -2906,15 +2913,31 @@ export function renderSlot<
     async editorSubmit({ mode, sendAt, pluginSubmission }) {
       const reason = composerBlockedReason();
       if (reason !== null) throw new Error(reason);
-      composerLog.submits.push({
-        ...(mode === "enter" ? {} : { experimental_mode: mode }),
-        ...(sendAt === undefined ? {} : { sendAt }),
-        ...(pluginSubmission === undefined
-          ? {}
-          : { experimental_data: pluginSubmission.data }),
-      });
-      commitComposerDraft("", []);
-      for (const listener of submissionListeners) listener();
+      const initial = composerDraft();
+      composerIsSubmitting = true;
+      notifyComposerListeners();
+      try {
+        const submittedDraft = await beforeSubmit.run(initial);
+        if (submittedDraft.text.trim() === "" && submittedDraft.attachments.length === 0) {
+          throw new Error("Type a message first.");
+        }
+        composerLog.submits.push({
+          ...(mode === "enter" ? {} : { experimental_mode: mode }),
+          ...(sendAt === undefined ? {} : { sendAt }),
+          ...(pluginSubmission === undefined
+            ? {}
+            : { experimental_data: pluginSubmission.data }),
+        });
+        composerLog.submittedDrafts.push(submittedDraft);
+        composerLog.submittedSelections.push(composerSelection);
+        if (initial.text === composerText && initial.mentions === composerMentions && initial.attachments === composerAttachments) {
+          composerTarget.setDraft({ text: "", mentions: [], attachments: [] });
+        }
+        for (const listener of submissionListeners) listener();
+      } finally {
+        composerIsSubmitting = false;
+        notifyComposerListeners();
+      }
     },
     insertAtCursor(value, block) {
       composerTarget.setDraft(
@@ -2964,6 +2987,12 @@ export function renderSlot<
         return () => {
           submissionListeners.delete(listener);
         };
+      },
+      onBeforeSubmit(listener) {
+        if (!composerOwnership.active) {
+          throw new Error("Before-submit hooks require a mounted New Thread composer.");
+        }
+        return beforeSubmit.register(listener);
       },
     },
   ).handle;
@@ -3082,6 +3111,7 @@ export function renderSlot<
   const releaseComposerOwnership = (): void => {
     if (!composerOwnership.active) return;
     composerOwnership.active = false;
+    beforeSubmit.clear();
     composerLog.textEffect = null;
     composerLog.inputLocked = false;
   };
@@ -3146,6 +3176,7 @@ export function renderSlot<
     scope: PluginComposerScope,
   ): Promise<void> => {
     await act(async () => {
+      beforeSubmit.clear();
       composerScope = scope;
       notifyComposerListeners();
     });

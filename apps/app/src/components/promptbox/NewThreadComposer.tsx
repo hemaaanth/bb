@@ -1,4 +1,4 @@
-import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
+import { composerDraftFromPromptDraft, createCoreComposerActions } from "@/lib/plugin-composer-handle";
 import {
   readPendingAttachmentUploads,
   usePendingAttachmentUploads,
@@ -14,9 +14,11 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +35,7 @@ import {
 } from "@bb/domain";
 import type {
   ExperimentalComposerSelection,
+  ComposerDraftSnapshot,
   NewThreadRequest,
   PluginEnvironmentProviderInputsChange,
 } from "@get-bb/plugin-sdk";
@@ -71,6 +74,7 @@ import {
   useComposerHostSelection,
 } from "@/components/plugin/plugin-composer-host";
 import type { ComposerSubmitExtras } from "@get-bb/plugin-sdk/internal/composer-handle";
+import { createComposerBeforeSubmit } from "@get-bb/plugin-sdk/internal/composer-handle";
 import {
   readExecutionSelection,
   resolveComposerSelectionDeadline,
@@ -114,7 +118,7 @@ import {
 import { usePromptBoxMachinePreference } from "@/hooks/thread-creation-options/persisted-selection-fields";
 import { useThreadCreationOptions } from "@/hooks/useThreadCreationOptions";
 import { useComposerTextEffects } from "@/lib/composer-text-effects";
-import { getMutationErrorMessage } from "@/lib/mutation-errors";
+import { getMutationErrorMessage, showMutationErrorToast } from "@/lib/mutation-errors";
 import { promptHistoryEntriesToDrafts } from "@/lib/prompt-history";
 import { usePromptHistoryEnabled } from "@/hooks/usePromptHistoryEnabled";
 import {
@@ -122,6 +126,7 @@ import {
   getProjectStoredPromptAttachmentPaths,
   isPromptDraftEmpty,
   promptDraftToInput,
+  promptTextMentionFromComposerMention,
   type PromptDraftAttachment,
   type PromptDraftState,
 } from "@bb/client-core";
@@ -1615,6 +1620,13 @@ export function NewThreadComposer({
     : (selectedEnvironment ??
       (selectionScope === "new-thread" ? seed?.environment : undefined) ??
       null);
+  const [beforeSubmit] = useState(createComposerBeforeSubmit);
+  useEffect(() => () => beforeSubmit.clear(), [beforeSubmit, promptDraft.storageKey]);
+  const hasBeforeSubmit = useSyncExternalStore(
+    beforeSubmit.subscribe,
+    beforeSubmit.hasListeners,
+    beforeSubmit.hasListeners,
+  );
   const submissionReadinessReason = resolveNewThreadSubmitDisabledReason({
     environmentProviderInputsBlocker:
       machineProviderInputs.blockedReason ?? environmentProviderInputsBlocker,
@@ -1622,7 +1634,7 @@ export function NewThreadComposer({
       environmentSetupRequiredReason ?? machineServerAccessReason,
     isCopyingAttachments,
     isLoadingModels,
-    isSubmitting,
+    isSubmitting: false,
     isUploading,
     modelLoadError,
     projectDefaultsStatus: projectDefaultsState.status,
@@ -1634,20 +1646,28 @@ export function NewThreadComposer({
     submissionEnvironmentUnavailable: submissionEnvironment === null,
   });
   const submitDisabledReason =
-    submissionReadinessReason ??
+    (isSubmitting ? "Starting thread..." : null) ??
+    (hasBeforeSubmit
+      ? (isUploading ? "Uploading attachments..." : null) ??
+        (isCopyingAttachments ? "Moving attachments to the selected project..." : null)
+      : submissionReadinessReason) ??
     (promptInputEmpty ? "Enter a prompt or attach a file." : null);
-  const submitDraft = useCallback(
+  const submitPreparedDraft = useCallback(
     async (
+      submittedDraft: PromptDraftState,
+      preparedDraft: ComposerDraftSnapshot | null,
       blockedReason: string | null,
       { sendAt, pluginSubmission }: ComposerSubmitExtras,
     ) => {
-      const submittedDraft = promptDraft.getCurrent();
-      const input = promptDraftToInput(submittedDraft);
+      const input = promptDraftToInput(preparedDraft === null ? submittedDraft : {
+        text: preparedDraft.text,
+        mentions: preparedDraft.mentions.map(promptTextMentionFromComposerMention),
+        attachments: [...preparedDraft.attachments],
+      });
       if (
         blockedReason !== null ||
         submissionReadinessReason !== null ||
         input.length === 0 ||
-        isSubmittingRef.current ||
         projectDefaultsUnavailable ||
         submissionEnvironment === null ||
         !selectedProviderId ||
@@ -1684,11 +1704,9 @@ export function NewThreadComposer({
         ...(sendAt === undefined ? {} : { sendAt }),
         ...(pluginSubmission === undefined ? {} : { pluginSubmission }),
       };
-      isSubmittingRef.current = true;
-      setIsSubmitting(true);
       setAttachmentError(null);
       const clearedSubmittedDraft =
-        promptDraft.clearIfCurrentMatches(submittedDraft);
+        preparedDraft === null && promptDraft.clearIfCurrentMatches(submittedDraft);
       recordTelemetryEvent({
         name: "new_thread_submit",
         properties: { outcome: "started" },
@@ -1699,19 +1717,15 @@ export function NewThreadComposer({
           name: "new_thread_submit",
           properties: { outcome: "accepted" },
         });
+        promptDraft.clearIfCurrentMatches(submittedDraft);
         clearReuseEnvironment();
       } catch (submitError) {
         recordTelemetryEvent({
           name: "new_thread_submit",
           properties: { outcome: "failed" },
         });
-        if (clearedSubmittedDraft) {
-          promptDraft.restoreIfEmpty(submittedDraft);
-        }
+        if (clearedSubmittedDraft) promptDraft.restoreIfEmpty(submittedDraft);
         throw submitError;
-      } finally {
-        isSubmittingRef.current = false;
-        setIsSubmitting(false);
       }
     },
     [
@@ -1730,14 +1744,40 @@ export function NewThreadComposer({
       selectedThreadModel,
       serviceTier,
       sessionOptionSelections,
+      setAttachmentError,
       supportsServiceTier,
     ],
   );
 
+  const committedSubmit = useRef(submitPreparedDraft);
+  const submitBlockerRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    committedSubmit.current = submitPreparedDraft;
+  }, [submitPreparedDraft]);
   const handleSubmit = useCallback(
-    (blockedReason: string | null, extras: ComposerSubmitExtras = {}) =>
-      submitDraft(blockedReason, extras),
-    [submitDraft],
+    async (extras: ComposerSubmitExtras = {}) => {
+      if (isSubmittingRef.current) throw new Error("Starting thread...");
+      const submittedDraft = promptDraft.getCurrent();
+      isSubmittingRef.current = true;
+      setIsSubmitting(true);
+      try {
+        let preparedDraft: ComposerDraftSnapshot | null = null;
+        try {
+          if (beforeSubmit.hasListeners()) {
+            preparedDraft = await beforeSubmit.run(composerDraftFromPromptDraft(submittedDraft));
+          }
+          if (pendingSelectionRef.current !== null) await pendingSelectionRef.current;
+        } catch (error) {
+          showMutationErrorToast({ error, fallbackMessage: "Failed to prepare thread." });
+          throw error;
+        }
+        await committedSubmit.current(submittedDraft, preparedDraft, submitBlockerRef.current, extras);
+      } finally {
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+      }
+    },
+    [beforeSubmit, promptDraft],
   );
 
   const handleProviderChange = useDraftPreservingOptionChange(
@@ -1828,7 +1868,7 @@ export function NewThreadComposer({
     promptDraft.storageKey,
     composerSelection,
   );
-  const pendingSelectionRef = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingSelectionRef = useRef<Promise<ExperimentalComposerSelection> | null>(null);
   const applySelection = useCallback(
     async (
       selection: ExperimentalComposerSelection,
@@ -1903,11 +1943,15 @@ export function NewThreadComposer({
   );
   const setSelection = useCallback(
     (selection: ExperimentalComposerSelection) => {
-      const run = pendingSelectionRef.current.then(
+      const run = (pendingSelectionRef.current ?? Promise.resolve()).then(
         () => applySelection(selection),
         () => applySelection(selection),
       );
       pendingSelectionRef.current = run;
+      const clear = () => {
+        if (pendingSelectionRef.current === run) pendingSelectionRef.current = null;
+      };
+      void run.then(clear, clear);
       return run;
     },
     [applySelection],
@@ -1925,9 +1969,11 @@ export function NewThreadComposer({
       focus: focusPromptBox,
       sendsOnEnter: true,
       setSelection,
+      onBeforeSubmit: beforeSubmit.register,
     }),
     [
       focusPromptBox,
+      beforeSubmit,
       getSelection,
       projectId,
       promptDraft.getCurrent,
@@ -1949,16 +1995,17 @@ export function NewThreadComposer({
     (options: NewThreadComposerPromptOptions) => {
       const locks = options.locks ?? {};
       pickerLocksRef.current = locks;
-      const disabledReason = options.blockedReason ?? submitDisabledReason;
+      submitBlockerRef.current = options.blockedReason ?? null;
+      const disabledReason = hasBeforeSubmit
+        ? submitDisabledReason
+        : options.blockedReason ?? submitDisabledReason;
       return (
         <LiveDraftNewThreadPromptBox
           promptDraft={promptDraft}
           id={options.id}
           focusRequest={promptBoxFocusRequest}
           onChange={promptDraft.setTextAndMentions}
-          onSubmit={(extras) =>
-            handleSubmit(options.blockedReason ?? null, extras)
-          }
+          onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
           disabled={disabledReason !== null}
           disabledReason={disabledReason ?? undefined}
@@ -2145,6 +2192,7 @@ export function NewThreadComposer({
       handleSelectReuse,
       handleServiceTierChange,
       handleSubmit,
+      hasBeforeSubmit,
       handleWorktreeChange,
       hasMultipleProviders,
       isCopyingAttachments,

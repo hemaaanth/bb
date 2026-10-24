@@ -126,6 +126,29 @@ reasoningLevel?, serviceTier?, permissionMode? })` sets the pickers as if
     their current values. It rejects in a
     queued-message editor. `onSubmitted(listener)` observes successful local
     submissions.
+  - `experimental_onBeforeSubmit(listener)` registers from a mounted
+    `useComposer()` component in New Thread only. Other surfaces, detached
+    handles and unmounted composers throw. Register in a `new-thread` banner
+    effect and return the disposer. Native Enter, the send button, and
+    `submit()` all await the same listeners before creating a thread.
+    Each listener receives an immutable `ComposerDraftSnapshot` and may return
+    `void` or `{ draft?: ComposerDraftReplacement }`, synchronously or through
+    a promise. Listeners run in registration order over the preceding result.
+    Replacement follows `replace` validation and preserves omitted attachments,
+    but affects only submitted input, never the saved draft.
+    Await `composer.setSelection(...)` to select the provider/model first.
+    The host validates the latest committed selection after listeners finish;
+    an unrelated model is not required just to start the hook.
+    Throwing aborts submission, reports the error, and keeps the complete draft.
+    Later edits remain in the editor and are not included in that submission.
+    Selection changes are not rolled back. Duplicate submits are rejected.
+    Unmount, scope change, crash and reload dispose registrations; disposal
+    during a callback aborts its submission after the callback settles.
+    Do not call `submit()` recursively from a listener.
+    The testing harness records accepted input in `composer.submittedDrafts`
+    and final picker values in `composer.submittedSelections`.
+    This is an unreleased experimental member until a Core release includes it;
+    feature-detect it when supporting older hosts.
   - Lifetime: a handle writes to its own composer's draft. Thread and
     new-thread drafts persist, so writes after the composer leaves the screen
     still land there. Once a queued-message or sent-message editor closes,

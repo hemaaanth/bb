@@ -14,6 +14,39 @@ question.
 [provider-bridge-protocol.md](provider-bridge-protocol.md). An entry without
 a "Docs:" line has no owning doc, so it keeps the essential contract itself.
 
+## `PluginComposerApi.experimental_onBeforeSubmit`
+
+Registers an async listener from a mounted `useComposer()` component for its
+New Thread composer. Existing-thread, queued-message, detached and unmounted
+handles reject registration. Native Enter, the send button and `submit()` use
+the same `NewThreadComposer` pipeline. No server/daemon fields change.
+
+The listener receives an immutable `ComposerDraftSnapshot` and may return
+`{ draft?: ComposerDraftReplacement }`. Listeners run serially in registration
+order; each receives the preceding listener's transient result. Replacements
+are validated like `replace`, preserve omitted attachments, and never write
+the saved draft. A listener may await `setSelection`; submission reads the
+latest committed selection, including project and unprovisioned machine
+inputs, only afterward. Selection validation runs after listeners so selecting
+a provider does not require an unrelated model first. Upload and duplicate-send
+guards still apply. Errors retain the original editor contents; edits made
+during awaits remain unsent in the editor. Selection changes are not rolled back.
+
+The returned disposer removes the listener. The host also releases registrations
+on scope change, slot unmount, crash, or reload. Disposing a running listener
+aborts that submission after it settles. Listeners must not recursively submit.
+Use a `new-thread` composer banner and return the disposer from an effect.
+
+Docs: `frontend-hooks-and-ui.md`. The Plugin Guide's composer-state inventory
+owns this member. `renderSlot` uses the shared runner and records
+`composer.submittedDrafts` and `composer.submittedSelections`.
+
+Before stabilization: verify native keyboard/button and programmatic parity,
+selection settlement without a prior model, cold machine inputs, draft edits
+during awaits, failure retention, ordering, disposal and reload across multiple
+composers. Do not claim released support from this source addition: consumers
+must feature-detect or require a Core release that includes it.
+
 ## Composer popups
 
 `ComposerCustomization.experimental_popups` registers `{ id, label, component }`

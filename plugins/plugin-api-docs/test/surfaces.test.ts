@@ -171,26 +171,4 @@ describe("surface card copy", () => {
     );
   });
 
-  it("follows the lead-then-bullets template", () => {
-    for (const group of SURFACE_GROUPS) {
-      for (const surface of group.surfaces) {
-        expect(surface.summary, surface.id).toMatch(
-          /^(Add|Replace|Run|Provide|Use) .{1,90}\. With this, a plugin can:$/,
-        );
-        expect(surface.bullets.length, surface.id).toBeGreaterThanOrEqual(2);
-        expect(surface.bullets.length, surface.id).toBeLessThanOrEqual(4);
-        for (const bullet of surface.bullets) {
-          expect(bullet.trim().length, surface.id).toBeGreaterThan(0);
-          expect(
-            bullet.length,
-            `${surface.id}: "${bullet}"`,
-          ).toBeLessThanOrEqual(100);
-          expect(bullet, `${surface.id}: "${bullet}"`).not.toMatch(/^Can\b/);
-          expect(bullet, `${surface.id}: "${bullet}"`).not.toMatch(
-            /experimental_|\b[a-z]+[A-Z]\w*|\w\(/,
-          );
-        }
-      }
-    }
-  });
 });

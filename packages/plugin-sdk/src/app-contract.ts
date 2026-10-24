@@ -4185,6 +4185,24 @@ export interface PluginComposerApi {
   removeMention(mention: { provider: string; id: string }): void;
   /** Subscribe to successful local submissions in this composer scope, including accepted queued messages. Failed sends and draft clearing do not notify. Dispose on unmount. */
   onSubmitted(listener: () => void): () => void;
+  /**
+   * Register before native or programmatic New Thread submission. Other
+   * surfaces and unmounted composers reject registration. Listeners run in
+   * registration order with immutable snapshots; a replacement affects only
+   * submitted input, never the saved draft. Omitted attachments are retained.
+   * Await `setSelection` to change the selection used for this submission.
+   * Throws abort submission and retain the editor draft. Edits made while
+   * awaiting remain in the editor, not in this submission's snapshot.
+   * Dispose on unmount; the host also disposes on scope change or plugin reload.
+   */
+  experimental_onBeforeSubmit(
+    listener: (
+      draft: ComposerDraftSnapshot,
+    ) =>
+      | void
+      | { draft?: ComposerDraftReplacement }
+      | Promise<void | { draft?: ComposerDraftReplacement }>,
+  ): () => void;
   /** Focus the composer caret at the end of the draft. */
   focus(): void;
   /**

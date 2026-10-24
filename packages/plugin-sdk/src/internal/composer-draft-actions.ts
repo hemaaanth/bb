@@ -151,3 +151,52 @@ export function createComposerDraftActions(
     },
   };
 }
+
+export function createComposerBeforeSubmit() {
+  type Listener = Parameters<PluginComposerApi["experimental_onBeforeSubmit"]>[0];
+  const listeners = new Set<Listener>();
+  const subscribers = new Set<() => void>();
+  const notify = () => {
+    for (const subscriber of subscribers) subscriber();
+  };
+  return {
+    hasListeners: () => listeners.size > 0,
+    subscribe(listener: () => void) {
+      subscribers.add(listener);
+      return () => { subscribers.delete(listener); };
+    },
+    register(listener: Listener) {
+      const entry: Listener = (draft) => listener(draft);
+      listeners.add(entry);
+      notify();
+      return () => {
+        listeners.delete(entry);
+        notify();
+      };
+    },
+    async run(initial: ComposerDraftSnapshot): Promise<ComposerDraftSnapshot> {
+      let draft = initial;
+      const actions = createComposerDraftActions(() => ({
+        getDraft: () => draft,
+        setDraft: (next) => {
+          draft = { ...next, attachments: next.attachments ?? draft.attachments };
+        },
+        isAvailable: () => true,
+        focus: () => {},
+      }));
+      for (const listener of [...listeners]) {
+        if (!listeners.has(listener)) continue;
+        const result = await listener(actions.draft);
+        if (!listeners.has(listener)) {
+          throw new Error("The before-submit listener was disposed during submission.");
+        }
+        if (result?.draft !== undefined) actions.replace(result.draft);
+      }
+      return actions.draft;
+    },
+    clear() {
+      listeners.clear();
+      notify();
+    },
+  };
+}

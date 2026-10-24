@@ -21,6 +21,7 @@ import type {
 import { createComposerDraftActions } from "./composer-draft-actions.js";
 
 export { createComposerDraftActions } from "./composer-draft-actions.js";
+export { createComposerBeforeSubmit } from "./composer-draft-actions.js";
 
 export interface ComposerEditorState {
   layout: "expanded" | "compact";
@@ -71,6 +72,7 @@ export interface ComposerHandleController {
   setTextEffect(effect: PluginComposerTextEffect | null): void;
   setInputLock(locked: boolean): void;
   onSubmitted(listener: () => void): () => void;
+  onBeforeSubmit?: PluginComposerApi["experimental_onBeforeSubmit"];
 }
 
 export interface ComposerHandleBinding {
@@ -448,6 +450,13 @@ export function createComposerHandleBinding(
     insertMention,
     removeMention,
     onSubmitted,
+    experimental_onBeforeSubmit: (listener) => {
+      requireAvailable();
+      if (target().scope.kind !== "new-thread" || !controller.onBeforeSubmit) {
+        throw new Error("Before-submit hooks require a mounted New Thread composer.");
+      }
+      return controller.onBeforeSubmit(listener);
+    },
     focus: () => target().focus(),
     experimental_openPopup: (id) =>
       target().openPopup?.(controller.pluginId, id) ?? false,

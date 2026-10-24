@@ -13,6 +13,7 @@ import {
 import type {
   ComposerSelection,
   ComposerView,
+  PluginComposerApi,
   PluginComposerScope,
 } from "@get-bb/plugin-sdk";
 import { isComposerDraftEmpty } from "@get-bb/plugin-sdk/internal/composer-view";
@@ -30,6 +31,7 @@ export interface PluginComposerHost {
   focus(): void;
   sendsOnEnter?: boolean;
   setSelection?(selection: ComposerSelection): Promise<ComposerSelection>;
+  onBeforeSubmit?: PluginComposerApi["experimental_onBeforeSubmit"];
 }
 
 export function composerScopeIdentity(scope: PluginComposerScope): string {

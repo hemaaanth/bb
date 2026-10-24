@@ -11,7 +11,9 @@ Read `testing.md` for examples and fidelity limits.
 - `PluginSdkTestFakes`
 - `NavigateCall`
 - `ExperimentalFixedTabOpenCall`
-- `ComposerLog`
+- `ComposerLog` — `submittedDrafts` contains immutable accepted input after
+  before-submit listeners; `submittedSelections` contains the final pickers.
+  `draft` remains the editor draft, including edits made during listener awaits.
 - `SidebarActionCall`
 - `SidebarNavigationCall`
 - `TestThreadActionsResolver`

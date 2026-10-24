@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 
 import { useContext, useEffect, useState, type ReactNode } from "react";
+import { Toaster, toast } from "sonner";
+import { appToast } from "@/components/ui/app-toast";
+import { attachSonnerToast } from "@/components/ui/app-toast-runtime";
 import { Provider } from "jotai";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -48,6 +51,9 @@ import { getPromptDraftAccessor } from "@/hooks/usePromptDraftStorage";
 import { makeThreadListEntry } from "@bb/test-helpers/domain-fixtures";
 import { createDeferredPromise } from "@bb/test-helpers";
 import type { PromptDraftAttachment } from "@bb/client-core";
+import { promptDraftToInput } from "@bb/client-core";
+import type { ComposerDraftSnapshot } from "@get-bb/plugin-sdk";
+import { createCoreComposerActions } from "@/lib/plugin-composer-handle";
 import { makeProjectWithThreadsResponse } from "@/test/fixtures/projects";
 import { RootComposeView } from "@/views/RootComposeView";
 import { DefaultPaneContextProvider } from "@/views/thread-detail/PaneContext";
@@ -1995,6 +2001,129 @@ describe("PluginNewThreadComposer seeding", () => {
     expect(updateDepthErrors).toEqual([]);
   });
 
+  it("awaits before-submit selection and sends the captured draft once without erasing later edits", async () => {
+    const onSubmit = vi.fn();
+    renderComposer(STORED_REQUEST, onSubmit, "before-submit");
+    await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
+    const host = latestPromptBoxProps().pluginComposerHost as PluginComposerHost;
+    const original = {
+      text: "@profile review @thread",
+      mentions: [
+        { kind: "plugin" as const, pluginId: "profiles", provider: "saved", id: "p1", label: "profile", from: 0, to: 8 },
+        { kind: "thread" as const, threadId: "thr_other", label: "thread", from: 16, to: 23 },
+      ],
+      attachments: [{ type: "localFile" as const, path: "uploads/spec.md", name: "spec.md", sourceProjectId: "proj_source" }],
+    };
+    const actions = createCoreComposerActions(host);
+    act(() => actions.replace(original));
+    const gate = createDeferredPromise<void>();
+    const listener = vi.fn(async (draft: ComposerDraftSnapshot) => {
+      expect(Object.isFrozen(draft)).toBe(true);
+      expect(Object.isFrozen(draft.mentions[0])).toBe(true);
+      await gate.promise;
+      await host.setSelection!({ providerId: "codex", model: "gpt-5.6", reasoningLevel: "low" });
+      return { draft: { text: draft.text, mentions: draft.mentions.slice(1) } };
+    });
+    let dispose = () => {};
+    act(() => { dispose = host.onBeforeSubmit!(listener); });
+    act(() => {
+      pressSubmit();
+      pressSubmit();
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(actions.draft).toEqual(original);
+    act(() => actions.replace({ ...original, text: `${original.text} next edit` }));
+    await act(async () => { gate.resolve(); });
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+    expect(listener).toHaveBeenCalledOnce();
+    const sent = onSubmit.mock.calls[0]?.[0];
+    expect(sent).toMatchObject({
+      projectId: STORED_REQUEST.projectId,
+      environment: STORED_REQUEST.environment,
+      providerId: "codex",
+      model: "gpt-5.6",
+      reasoningLevel: "low",
+    });
+    expect(sent.input).toEqual(promptDraftToInput({
+      ...host.getCurrent(),
+      text: original.text,
+      mentions: host.getCurrent().mentions.slice(1),
+    }));
+    expect(actions.draft).toEqual({ ...original, text: `${original.text} next edit` });
+    act(dispose);
+  });
+
+  it.each(["listener", "create"])("retains the complete original draft when %s rejects", async (failureAt) => {
+    const showError = vi.spyOn(appToast, "error");
+    const failure = new Error("Profile is no longer available");
+    const onSubmit = vi.fn(async () => {
+      if (failureAt === "create") throw failure;
+    });
+    renderComposer(STORED_REQUEST, onSubmit, `before-submit-error-${failureAt}`);
+    await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
+    const host = latestPromptBoxProps().pluginComposerHost as PluginComposerHost;
+    const actions = createCoreComposerActions(host);
+    act(() => actions.replace({
+      text: "@profile draft",
+      mentions: [{ kind: "plugin", pluginId: "profiles", provider: "saved", id: "p1", label: "profile", from: 0, to: 8 }],
+      attachments: [{ type: "localFile", path: "uploads/spec.md", name: "spec.md", sourceProjectId: "proj_source" }],
+    }));
+    const original = actions.draft;
+    act(() => {
+      host.onBeforeSubmit!(async (draft) => {
+        if (failureAt === "listener") throw failure;
+        return { draft: { ...draft, mentions: [] } };
+      });
+    });
+    await act(async () => {
+      await expect(latestPromptBoxProps().onSubmit()).rejects.toBe(failure);
+    });
+    expect(actions.draft).toEqual(original);
+    expect(onSubmit).toHaveBeenCalledTimes(failureAt === "listener" ? 0 : 1);
+    expect(showError).toHaveBeenCalledTimes(failureAt === "listener" ? 1 : 0);
+  });
+
+  it("shows the actual before-submit error from native Send while retaining the draft", async () => {
+    const failure = new Error("Saved profile was deleted during activation");
+    const onSubmit = vi.fn();
+    renderComposer(STORED_REQUEST, onSubmit, "native-before-submit-error");
+    render(<Toaster />);
+    attachSonnerToast(toast);
+    await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
+    const host = latestPromptBoxProps().pluginComposerHost as PluginComposerHost;
+    const original = host.getCurrent();
+    act(() => {
+      host.onBeforeSubmit!(async () => { throw failure; });
+    });
+    try {
+      await submit();
+      expect(await screen.findByText(failure.message)).toBeTruthy();
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(host.getCurrent()).toEqual(original);
+      expect(latestPromptBoxProps().isSubmitting).toBe(false);
+    } finally {
+      act(() => { toast.dismiss(); });
+    }
+  });
+
+  it("disposes before-submit listeners without affecting another composer", async () => {
+    const firstSubmit = vi.fn();
+    const first = renderComposer(STORED_REQUEST, firstSubmit, "before-first");
+    await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
+    const firstHost = latestPromptBoxProps().pluginComposerHost as PluginComposerHost;
+    const listener = vi.fn(() => { throw new Error("Disposed listener ran"); });
+    let dispose = () => {};
+    act(() => { dispose = firstHost.onBeforeSubmit!(listener); });
+    const secondSubmit = vi.fn();
+    renderComposer(STORED_REQUEST, secondSubmit, "before-second");
+    await waitFor(() => expect(latestPromptBoxProps().disabled).toBe(false));
+    await submit();
+    expect(secondSubmit).toHaveBeenCalledOnce();
+    expect(firstSubmit).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+    act(dispose);
+    first.unmount();
+  });
   it("ignores a repeated submit while the first submission is pending", async () => {
     let finishSubmit: (() => void) | null = null;
     const onSubmit = vi.fn(
